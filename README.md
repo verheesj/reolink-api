@@ -12,6 +12,8 @@ A robust Node.js/TypeScript SDK and CLI for interacting with Reolink NVR and cam
 - ✅ **Record search and download** for VOD workflows
 - ✅ **PTZ control** for presets and patrol
 - ✅ **AI and alarm state** monitoring
+- ✅ **Snapshot capture** for fast image capture
+- ✅ **Event polling** for real-time motion/AI detection
 - ✅ **Well-tested** with unit tests
 
 ## Quick Start
@@ -133,6 +135,19 @@ reolink alarm md-state --channel 0
 reolink alarm alarm
 ```
 
+### Snapshot Capture
+
+```bash
+# Capture snapshot to file
+reolink snap --channel 0 --file snapshot.jpg
+
+# Capture snapshot and pipe to stdout (for preview or processing)
+reolink snap --channel 0 | file -  # Shows JPEG image data
+
+# Quiet mode (suppress logs)
+reolink snap --channel 0 --file snapshot.jpg --quiet
+```
+
 ### Generic API Commands
 
 ```bash
@@ -194,6 +209,8 @@ Options:
 - `login(): Promise<string>` - Login and get session token
 - `logout(): Promise<void>` - Logout and invalidate token
 - `api<T>(command: string, params?: Record<string, unknown>): Promise<T>` - Make API call
+- `snapshotToBuffer(channel?: number): Promise<Buffer>` - Capture snapshot as Buffer
+- `snapshotToFile(path: string, channel?: number): Promise<void>` - Capture snapshot to file
 - `close(): Promise<void>` - Close client and logout (idempotent)
 - `getToken(): string` - Get current token
 - `isClosed(): boolean` - Check if client is closed

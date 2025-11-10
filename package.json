@@ -38,6 +38,10 @@
       "types": "./dist/events.d.ts",
       "import": "./dist/events.js"
     },
+    "./snapshot": {
+      "types": "./dist/snapshot.d.ts",
+      "import": "./dist/snapshot.js"
+    },
     "./endpoints/system": {
       "types": "./dist/endpoints/system.d.ts",
       "import": "./dist/endpoints/system.js"

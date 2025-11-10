@@ -360,5 +360,63 @@ export class ReolinkClient {
   isClosed(): boolean {
     return this.closed;
   }
+
+  /**
+   * Get the host
+   */
+  getHost(): string {
+    return this.host;
+  }
+
+  /**
+   * Get the username
+   */
+  getUsername(): string {
+    return this.username;
+  }
+
+  /**
+   * Get the password
+   */
+  getPassword(): string {
+    return this.password;
+  }
+
+  /**
+   * Get the connection mode
+   */
+  getMode(): ReolinkMode {
+    return this.mode;
+  }
+
+  /**
+   * Check if insecure mode is enabled
+   */
+  isInsecure(): boolean {
+    return this.insecure;
+  }
+
+  /**
+   * Get the fetch implementation
+   */
+  getFetchImpl(): typeof fetch {
+    return this.fetchImpl;
+  }
+
+  /**
+   * Capture a snapshot and return as Buffer
+   */
+  async snapshotToBuffer(channel: number = 0): Promise<Buffer> {
+    const { snapToBuffer } = await import("./snapshot.js");
+    return snapToBuffer(this, channel);
+  }
+
+  /**
+   * Capture a snapshot and save to file
+   */
+  async snapshotToFile(path: string, channel: number = 0): Promise<void> {
+    const { snapToFile } = await import("./snapshot.js");
+    return snapToFile(this, path, channel);
+  }
 }
 

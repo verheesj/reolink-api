@@ -19,6 +19,7 @@ import { getPtzPreset, ptzCtrl } from "./ptz.js";
 import { getAiCfg, getAiState } from "./ai.js";
 import { getAlarm, getMdState } from "./alarm.js";
 import { detectCapabilities } from "./capabilities.js";
+import { snapToBuffer, snapToFile } from "./snapshot.js";
 
 // Parse command-line arguments
 function parseArgs() {
@@ -126,6 +127,7 @@ Commands:
   alarm alarm
   capabilities              Show device capabilities
   events listen [--interval MS]  Listen for motion/AI events (JSON output)
+  snap [--channel N] [--file out.jpg]  Capture snapshot (JPEG)
   <command> [json_payload]  Generic API command
 
 Examples:
@@ -496,6 +498,45 @@ async function main() {
           }
         } else if (cmd === "capabilities" || cmd === "caps") {
           result = await detectCapabilities(client);
+        } else if (cmd === "snap" || cmd === "snapshot") {
+          // Parse channel and file options
+          let channel = 0;
+          let outputFile: string | undefined;
+          let quiet = false;
+
+          while (i < args.length && args[i].startsWith("--")) {
+            if (args[i] === "--channel" && i + 1 < args.length) {
+              channel = parseInt(args[i + 1], 10);
+              i += 2;
+            } else if (args[i] === "--file" && i + 1 < args.length) {
+              outputFile = args[i + 1];
+              i += 2;
+            } else if (args[i] === "--quiet") {
+              quiet = true;
+              i++;
+            } else {
+              i++;
+            }
+          }
+
+          if (outputFile) {
+            // Save to file
+            if (!quiet) {
+              console.error(`Capturing snapshot from channel ${channel} to ${outputFile}...`);
+            }
+            await snapToFile(client, outputFile, channel);
+            if (!quiet) {
+              console.error(`Snapshot saved to ${outputFile}`);
+            }
+            // Don't output anything to stdout when writing to file
+            return; // Exit early
+          } else {
+            // Write binary to stdout
+            const buffer = await snapToBuffer(client, channel);
+            // Write binary data to stdout (for piping)
+            process.stdout.write(buffer);
+            return; // Exit early, don't output JSON
+          }
         } else if (cmd === "events") {
           if (i >= args.length) {
             console.error("Error: events command requires a subcommand (listen)");
