@@ -34,3 +34,6 @@ coverage/
 # Scripts directory
 scripts/
 
+# Snapshots directory
+snapshots/
+
