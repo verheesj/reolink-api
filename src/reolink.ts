@@ -73,9 +73,10 @@ export class ReolinkClient {
    */
   async api<T = unknown>(
     command: string,
-    params: Record<string, unknown> = {}
+    params: Record<string, unknown> = {},
+    action: 0 | 1 = 0
   ): Promise<T> {
-    return this.withToken<T>(command, params);
+    return this.withToken<T>(command, params, action);
   }
 
   /**
@@ -83,11 +84,12 @@ export class ReolinkClient {
    */
   private async apiInternal<T = unknown>(
     command: string,
-    params: Record<string, unknown> = {}
+    params: Record<string, unknown> = {},
+    action: 0 | 1 = 0
   ): Promise<T> {
     const request: ReolinkRequest = {
       cmd: command,
-      action: 0,
+      action,
       param: params,
     };
 
@@ -260,6 +262,7 @@ export class ReolinkClient {
   private async withToken<T>(
     command: string,
     params: Record<string, unknown> = {},
+    action: 0 | 1 = 0,
     retryCount = 0
   ): Promise<T> {
     if (this.closed) {
@@ -268,13 +271,13 @@ export class ReolinkClient {
 
     // In short mode, skip token management
     if (this.mode === "short") {
-      return this.apiInternal<T>(command, params);
+      return this.apiInternal<T>(command, params, action);
     }
 
     await this.ensureToken();
 
     try {
-      return await this.apiInternal<T>(command, params);
+      return await this.apiInternal<T>(command, params, action);
     } catch (error) {
       // Check if it's a token-related error (401 or specific error codes)
       if (error instanceof ReolinkHttpError) {
@@ -292,7 +295,164 @@ export class ReolinkClient {
           this.token = "null";
           this.tokenExpiryTime = 0;
           // Retry once after re-login
-          return this.withToken<T>(command, params, retryCount + 1);
+          return this.withToken<T>(command, params, action, retryCount + 1);
+        }
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Send a single request with custom payload/action values.
+   * Wrapper over api() for compatibility with Cursor integrations.
+   */
+  async request<T = unknown>(
+    command: string,
+    payload: Record<string, unknown> = {},
+    action: 0 | 1 = 0
+  ): Promise<T> {
+    return this.api<T>(command, payload, action);
+  }
+
+  /**
+   * Send multiple requests in a single HTTP roundtrip.
+   * Each request shares the same authentication context.
+   */
+  async requestMany<T = unknown>(
+    requests: Array<{
+      cmd: string;
+      param?: Record<string, unknown>;
+      action?: 0 | 1;
+    }>
+  ): Promise<T[]> {
+    if (requests.length === 0) {
+      return [];
+    }
+
+    const normalizedRequests: ReolinkRequest[] = requests.map((req) => ({
+      cmd: req.cmd,
+      action: req.action ?? 0,
+      param: req.param ?? {},
+    }));
+
+    const responses = await this.withTokenMany<T>(normalizedRequests);
+
+    return responses.map((response, index) => {
+      if (response.code === 0) {
+        return response.value as T;
+      }
+      const errorResult = response as ReolinkResponseError;
+      throw new ReolinkHttpError(
+        errorResult.code,
+        errorResult.error.rspCode,
+        errorResult.error.detail,
+        normalizedRequests[index]?.cmd
+      );
+    });
+  }
+
+  private async apiInternalMany<T = unknown>(
+    requests: ReolinkRequest[]
+  ): Promise<ReolinkResponse<T>[]> {
+    if (requests.length === 0) {
+      return [];
+    }
+
+    const commandForQuery = requests[0]?.cmd ?? "Batch";
+
+    // Build query string based on mode
+    let queryParams: string;
+    if (this.mode === "short") {
+      const user = encodeURIComponent(this.username);
+      const pass = encodeURIComponent(this.password);
+      queryParams = `cmd=${commandForQuery}&user=${user}&password=${pass}`;
+    } else {
+      queryParams = `cmd=${commandForQuery}&token=${this.token}`;
+    }
+
+    const target = `${this.url}?${queryParams}`;
+
+    if (this.debug) {
+      console.error(">>> REQUEST MANY >>>");
+      console.error(`TARGET: ${target}`);
+      console.error(JSON.stringify(requests, null, 2));
+    }
+
+    const fetchOptions: RequestInit = {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(requests),
+    };
+
+    if (this.insecure) {
+      const agent = new https.Agent({
+        rejectUnauthorized: false,
+      });
+      (fetchOptions as { agent?: https.Agent }).agent = agent;
+    }
+
+    const response = await this.fetchImpl(target, fetchOptions);
+
+    if (!response.ok) {
+      throw new ReolinkHttpError(
+        response.status,
+        response.status,
+        `HTTP error! status: ${response.status}`,
+        commandForQuery
+      );
+    }
+
+    const data = (await response.json()) as ReolinkResponse<T>[];
+
+    if (this.debug) {
+      console.error("<<< RESPONSE MANY <<<");
+      console.error(JSON.stringify(data, null, 2));
+    }
+
+    return data;
+  }
+
+  private async withTokenMany<T = unknown>(
+    requests: ReolinkRequest[],
+    retryCount = 0
+  ): Promise<ReolinkResponse<T>[]> {
+    if (this.closed) {
+      throw new Error("Client is closed");
+    }
+
+    const normalized = requests.map((req) => ({
+      cmd: req.cmd,
+      action: req.action ?? 0,
+      param: req.param ?? {},
+    }));
+
+    if (this.mode === "short") {
+      return this.apiInternalMany<T>(normalized);
+    }
+
+    await this.ensureToken();
+
+    try {
+      return await this.apiInternalMany<T>(normalized);
+    } catch (error) {
+      if (error instanceof ReolinkHttpError) {
+        const isTokenError =
+          error.code === 401 ||
+          error.rspCode === -1 ||
+          error.detail.toLowerCase().includes("token") ||
+          error.detail.toLowerCase().includes("session");
+
+        if (isTokenError && retryCount === 0) {
+          if (this.debug) {
+            console.error(
+              "Token error detected while processing batch, re-logging in and retrying..."
+            );
+          }
+          this.token = "null";
+          this.tokenExpiryTime = 0;
+          return this.withTokenMany<T>(normalized, retryCount + 1);
         }
       }
       throw error;

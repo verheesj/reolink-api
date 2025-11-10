@@ -195,6 +195,60 @@ await startPatrol(client, 0, 0);
 
 The patrol helpers accept both the RLC-823A/S1 preset array format and legacy `points`/`path` payloads, and they normalise error codes into `ReolinkHttpError` instances. Guard helpers automatically include the parameters required by devices that bind guard mode to the current PTZ position.【F:src/ptz.ts†L1-L190】
 
+## Preset management, zones, and panorama assist
+
+For richer preset workflows—including per-preset motion/AI zones, privacy masks, and optional panorama capture—instantiate the
+`PresetsModule` with an authenticated client. The module wraps every preset-related CGI command, normalises responses, and
+provides helpers for reapplying app-stored zones whenever a preset is recalled.【F:src/presets.ts†L79-L320】【F:src/presets.ts†L322-L449】
+
+```typescript
+import { PresetsModule } from "reolink-api";
+
+const presets = new PresetsModule(client);
+
+// Create preset 3 using the camera's current PTZ pose
+await presets.setPreset(0, 3, "Entrance", true);
+await presets.gotoPreset(0, 3, { speed: 32 });
+
+// Persist desired motion/AI zones in your own store, then reapply on demand
+await presets.applyZonesForPreset(0, 3, {
+  md: { width: 80, height: 60, bits: "0".repeat(4800) },
+  ai: {
+    people: { width: 80, height: 60, bits: "1".repeat(4800) },
+  },
+});
+```
+
+When switching presets, retrieve the app-stored zones and hand them back to the helper. It will recall the preset, wait for the
+camera to settle, and then push privacy masks, motion zones, and any supported AI grids in sequence.【F:src/presets.ts†L266-L319】
+
+```typescript
+await presets.gotoPresetWithZones(
+  0,
+  5,
+  async (id) => database.loadZonesForPreset(id),
+  { speed: 24 }
+);
+```
+
+Guard mode and PTZ checks follow the documented limitations (60-second timeout, feature detection via ability data):
+
+```typescript
+await presets.setGuard(0, { enable: true, timeoutSec: 60, setCurrentAsGuard: true });
+const state = await presets.getPtzCheckState(0);
+if (state !== 2) {
+  await presets.ptzCheck(0);
+}
+```
+
+The optional panorama helper reuses the snapshot utilities and returns a buffer you can stitch or save directly. Supply your own
+tiling plan if you want to sweep across a preset while end users edit detection zones.【F:src/presets.ts†L321-L344】
+
+```typescript
+const panorama = await presets.buildPanorama(0, { panStep: 15, tiltStep: 10 });
+await fs.promises.writeFile("panorama.jpg", panorama.image as Buffer);
+```
+
 ## AI and Alarm Endpoints
 
 Access AI configuration/state and alarm information through dedicated modules:
