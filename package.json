@@ -1,0 +1,86 @@
+{
+  "name": "reolink-api",
+  "version": "1.0.0",
+  "description": "Node.js TypeScript implementation of Reolink API client",
+  "type": "module",
+  "main": "./dist/reolink.js",
+  "types": "./dist/reolink.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/reolink.d.ts",
+      "import": "./dist/reolink.js"
+    },
+    "./types": {
+      "types": "./dist/types.d.ts",
+      "import": "./dist/types.js"
+    },
+    "./stream": {
+      "types": "./dist/stream.d.ts",
+      "import": "./dist/stream.js"
+    },
+    "./record": {
+      "types": "./dist/record.d.ts",
+      "import": "./dist/record.js"
+    },
+    "./ptz": {
+      "types": "./dist/ptz.d.ts",
+      "import": "./dist/ptz.js"
+    },
+    "./ai": {
+      "types": "./dist/ai.d.ts",
+      "import": "./dist/ai.js"
+    },
+    "./alarm": {
+      "types": "./dist/alarm.d.ts",
+      "import": "./dist/alarm.js"
+    },
+    "./events": {
+      "types": "./dist/events.d.ts",
+      "import": "./dist/events.js"
+    },
+    "./endpoints/system": {
+      "types": "./dist/endpoints/system.d.ts",
+      "import": "./dist/endpoints/system.js"
+    }
+  },
+  "bin": {
+    "reolink": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\"",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "start": "node dist/cli.js",
+    "cli": "npm run build && npm run start",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "reolink",
+    "nvr",
+    "camera",
+    "api"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@typescript-eslint/eslint-plugin": "^6.15.0",
+    "@typescript-eslint/parser": "^6.15.0",
+    "@vitest/coverage-v8": "^1.1.0",
+    "eslint": "^8.56.0",
+    "prettier": "^3.1.1",
+    "typescript": "^5.3.3",
+    "vitest": "^1.1.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
+

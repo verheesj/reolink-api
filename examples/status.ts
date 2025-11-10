@@ -1,0 +1,45 @@
+/**
+ * Example: Device status queries
+ * 
+ * Run with: npx tsx examples/status.ts
+ */
+
+import { ReolinkClient } from "../src/reolink.js";
+import { getAbility, getDevInfo, getEnc } from "../src/endpoints/system.js";
+
+async function main() {
+  const host = process.env.REOLINK_NVR_HOST || "192.168.1.100";
+  const username = process.env.REOLINK_NVR_USER || "admin";
+  const password = process.env.REOLINK_NVR_PASS || "password";
+
+  const client = new ReolinkClient({
+    host,
+    username,
+    password,
+    debug: false,
+  });
+
+  try {
+    await client.login();
+
+    console.log("=== Device Information ===");
+    const devInfo = await getDevInfo(client);
+    console.log(JSON.stringify(devInfo, null, 2));
+
+    console.log("\n=== Device Abilities ===");
+    const ability = await getAbility(client);
+    console.log(JSON.stringify(ability, null, 2));
+
+    console.log("\n=== Encoding Configuration (Channel 0) ===");
+    const enc = await getEnc(client, 0);
+    console.log(JSON.stringify(enc, null, 2));
+
+    await client.close();
+  } catch (error) {
+    console.error("Error:", error);
+    process.exit(1);
+  }
+}
+
+main();
+
