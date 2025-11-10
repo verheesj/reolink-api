@@ -1,0 +1,272 @@
+:root {
+  color-scheme: light dark;
+  font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #111418;
+  color: #e7edf5;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  background: linear-gradient(135deg, #111418, #1c2330 40%, #0f172a 100%);
+}
+
+#app {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  width: 100%;
+  max-height: 100vh;
+}
+
+#sidebar {
+  background: rgba(7, 11, 17, 0.85);
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 24px;
+  overflow-y: auto;
+}
+
+#sidebar header h1 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.muted {
+  color: rgba(231, 237, 245, 0.6);
+}
+
+.sidebar-section {
+  margin-top: 24px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 0.9rem;
+}
+
+.field input {
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(15, 23, 42, 0.6);
+  color: inherit;
+}
+
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+button {
+  border: none;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  background: rgba(59, 130, 246, 0.85);
+  color: white;
+  cursor: pointer;
+  transition: transform 0.1s ease, background 0.2s ease;
+}
+
+button:disabled {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(231, 237, 245, 0.4);
+  cursor: not-allowed;
+}
+
+button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  background: rgba(59, 130, 246, 1);
+}
+
+main {
+  padding: 24px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.card {
+  background: rgba(15, 23, 42, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 20px;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 18px 32px rgba(2, 6, 23, 0.35);
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.card h2 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+#statusBar {
+  min-height: 24px;
+  padding: 4px 12px;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  color: rgba(231, 237, 245, 0.75);
+  font-size: 0.85rem;
+}
+
+#presetList {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+#presetList li {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  transition: border 0.2s ease, background 0.2s ease;
+}
+
+#presetList li:hover {
+  border: 1px solid rgba(59, 130, 246, 0.7);
+}
+
+#presetList li.active {
+  border: 1px solid rgba(59, 130, 246, 1);
+  background: rgba(59, 130, 246, 0.2);
+}
+
+#presetList li .name {
+  font-weight: 500;
+}
+
+.badge {
+  font-size: 0.7rem;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(34, 197, 94, 0.3);
+  color: rgba(187, 247, 208, 0.95);
+}
+
+#presetList li.has-zones .badge::after {
+  content: "zones";
+}
+
+.panorama-container {
+  display: flex;
+  gap: 20px;
+}
+
+.panorama-wrapper {
+  position: relative;
+  flex: 1;
+  min-height: 240px;
+  border-radius: 12px;
+  background: rgba(8, 13, 23, 0.8);
+  border: 1px dashed rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+#panoramaImage {
+  max-width: 100%;
+  max-height: 100%;
+  display: none;
+}
+
+#panoramaPlaceholder {
+  text-align: center;
+  padding: 20px;
+}
+
+.panorama-meta {
+  width: 200px;
+  font-size: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.zone-editor {
+  display: flex;
+  gap: 20px;
+}
+
+#zoneCanvas {
+  border-radius: 12px;
+  background: rgba(8, 13, 23, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  touch-action: none;
+}
+
+.zone-meta {
+  width: 220px;
+  font-size: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.zone-meta strong {
+  color: rgba(248, 250, 252, 0.85);
+}
+
+@media (max-width: 1024px) {
+  #app {
+    grid-template-columns: 1fr;
+  }
+
+  #sidebar {
+    border-right: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  main {
+    padding: 16px;
+  }
+
+  .panorama-container,
+  .zone-editor {
+    flex-direction: column;
+  }
+
+  .panorama-meta,
+  .zone-meta {
+    width: 100%;
+  }
+}
+#statusBar[data-variant="error"] {
+  color: #fecaca;
+  border-color: rgba(248, 113, 113, 0.4);
+}
+
+#statusBar[data-variant="warning"] {
+  color: #fcd34d;
+  border-color: rgba(250, 204, 21, 0.4);
+}
+
+#statusBar[data-variant="info"] {
+  color: rgba(191, 219, 254, 0.95);
+  border-color: rgba(59, 130, 246, 0.35);
+}

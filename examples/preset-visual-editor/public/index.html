@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Reolink Preset Visual Editor</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <aside id="sidebar">
+        <header>
+          <h1>Reolink Preset Editor</h1>
+          <p class="muted">
+            Manage PTZ presets, capture panoramas, and paint motion zones per preset.
+          </p>
+        </header>
+        <section class="sidebar-section">
+          <label class="field">
+            <span>Channel</span>
+            <input type="number" id="channelInput" value="0" min="0" />
+          </label>
+          <div class="button-row">
+            <button id="refreshPresets">Refresh</button>
+            <button id="createPreset">Create Preset</button>
+          </div>
+        </section>
+        <section class="sidebar-section presets">
+          <div class="section-header">
+            <h2>Presets</h2>
+            <span id="presetCount" class="muted"></span>
+          </div>
+          <ul id="presetList"></ul>
+        </section>
+      </aside>
+      <main>
+        <section id="statusBar"></section>
+        <section id="selectedPreset" class="card">
+          <header class="card-header">
+            <div>
+              <h2 id="selectedPresetName">No preset selected</h2>
+              <p id="selectedPresetMeta" class="muted"></p>
+            </div>
+            <div class="button-row">
+              <button id="renamePreset" disabled>Rename</button>
+              <button id="gotoPreset" disabled>Go To Preset</button>
+              <button id="applyPreset" disabled>Go &amp; Apply Zones</button>
+            </div>
+          </header>
+        </section>
+        <section id="panoramaSection" class="card">
+          <header class="card-header">
+            <h2>Panorama Assist</h2>
+            <div class="button-row">
+              <button id="refreshPanorama">Capture panorama</button>
+            </div>
+          </header>
+          <div class="panorama-container">
+            <div class="panorama-wrapper">
+              <img id="panoramaImage" alt="Panorama preview" />
+              <div id="panoramaPlaceholder" class="muted">
+                Capture a panorama to use as a reference for your zones.
+              </div>
+            </div>
+            <aside class="panorama-meta" id="panoramaMeta"></aside>
+          </div>
+        </section>
+        <section id="zonesSection" class="card">
+          <header class="card-header">
+            <h2>Motion Zones</h2>
+            <div class="button-row">
+              <button id="clearZone" disabled>Clear</button>
+              <button id="fillZone" disabled>Fill</button>
+              <button id="saveZone" disabled>Save Zones</button>
+            </div>
+          </header>
+          <div class="zone-editor">
+            <canvas id="zoneCanvas" width="640" height="480"></canvas>
+            <aside class="zone-meta" id="zoneMeta"></aside>
+          </div>
+        </section>
+      </main>
+    </div>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
