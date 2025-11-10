@@ -17,6 +17,7 @@ import {
   ReolinkEventEmitter,
   ReolinkEventEmitterOptions,
 } from "./events.js";
+import { ReolinkPlaybackController } from "./playback.js";
 
 interface LoginParams {
   User: {
@@ -417,6 +418,77 @@ export class ReolinkClient {
   async snapshotToFile(path: string, channel: number = 0): Promise<void> {
     const { snapToFile } = await import("./snapshot.js");
     return snapToFile(this, path, channel);
+  }
+
+  /**
+   * Create a playback controller for managing playback streams
+   */
+  createPlaybackController(): ReolinkPlaybackController {
+    return new ReolinkPlaybackController(this);
+  }
+
+  /**
+   * Get PTZ guard mode configuration
+   */
+  async getPtzGuard(channel: number): Promise<import("./ptz.js").PtzGuardConfig> {
+    const { getPtzGuard } = await import("./ptz.js");
+    return getPtzGuard(this, channel);
+  }
+
+  /**
+   * Set PTZ guard mode configuration
+   * Note: For RLC-823A/S1, guard mode binds to the current camera position.
+   * To change guard position: move PTZ to desired position, then call this function.
+   */
+  async setPtzGuard(
+    channel: number,
+    options: Partial<import("./ptz.js").PtzGuardConfig>
+  ): Promise<void> {
+    const { setPtzGuard } = await import("./ptz.js");
+    return setPtzGuard(this, channel, options);
+  }
+
+  /**
+   * Toggle PTZ guard mode
+   */
+  async toggleGuardMode(channel: number): Promise<void> {
+    const { toggleGuardMode } = await import("./ptz.js");
+    return toggleGuardMode(this, channel);
+  }
+
+  /**
+   * Get PTZ patrol configuration
+   */
+  async getPtzPatrol(channel: number): Promise<import("./ptz.js").PtzPatrolConfig[]> {
+    const { getPtzPatrol } = await import("./ptz.js");
+    return getPtzPatrol(this, channel);
+  }
+
+  /**
+   * Set PTZ patrol configuration
+   */
+  async setPtzPatrol(
+    channel: number,
+    config: import("./ptz.js").PtzPatrolConfig | import("./ptz.js").PtzPatrol
+  ): Promise<void> {
+    const { setPtzPatrol } = await import("./ptz.js");
+    return setPtzPatrol(this, channel, config);
+  }
+
+  /**
+   * Start a patrol route
+   */
+  async startPatrol(channel: number, patrolId: number): Promise<void> {
+    const { startPatrol } = await import("./ptz.js");
+    await startPatrol(this, channel, patrolId);
+  }
+
+  /**
+   * Stop a patrol route
+   */
+  async stopPatrol(channel: number, patrolId: number): Promise<void> {
+    const { stopPatrol } = await import("./ptz.js");
+    await stopPatrol(this, channel, patrolId);
   }
 }
 

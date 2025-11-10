@@ -14,6 +14,7 @@ A robust Node.js/TypeScript SDK and CLI for interacting with Reolink NVR and cam
 - ✅ **AI and alarm state** monitoring
 - ✅ **Snapshot capture** for fast image capture
 - ✅ **Event polling** for real-time motion/AI detection
+- ✅ **Playback stream control** for time-based video review
 - ✅ **Well-tested** with unit tests
 
 ## Quick Start
@@ -117,6 +118,25 @@ reolink ptz start-patrol 1 --channel 0
 
 # Stop patrol
 reolink ptz stop-patrol --channel 0
+
+# Get guard mode status
+reolink ptz guard get --channel 0
+
+# Set guard mode (with timeout)
+# Note: For RLC-823A/S1, guard binds to current PTZ position (move PTZ first)
+reolink ptz guard set --channel 0 --enable true --timeout 60
+
+# Get patrol configuration
+reolink ptz patrol get --channel 0
+
+# Set patrol configuration from JSON file
+reolink ptz patrol set --channel 0 --file patrol.json
+
+# Start patrol route
+reolink ptz patrol start --channel 0 --id 0
+
+# Stop patrol route
+reolink ptz patrol stop --channel 0 --id 0
 ```
 
 ### AI & Alarm
@@ -146,6 +166,22 @@ reolink snap --channel 0 | file -  # Shows JPEG image data
 
 # Quiet mode (suppress logs)
 reolink snap --channel 0 --file snapshot.jpg --quiet
+```
+
+### Playback Control
+
+```bash
+# Start playback from a specific time
+reolink playback start --channel 0 --start "2025-11-10T09:00:00Z"
+
+# Seek to a different time in current playback
+reolink playback seek --channel 0 --time "2025-11-10T09:15:00Z"
+
+# Stop playback (all channels)
+reolink playback stop
+
+# Stop playback on specific channel
+reolink playback stop --channel 0
 ```
 
 ### Generic API Commands
@@ -232,6 +268,110 @@ try {
   }
 }
 ```
+
+## Playback Control
+
+Control NVR/IPC playback streams programmatically:
+
+**⚠️ Device Compatibility Note:** Playback control commands (`PlaybackStart`, `PlaybackStop`, `PlaybackSeek`) are not supported on all Reolink devices. Some NVR models may return error code -9 ("not support") even though they support playback via the web UI. This is a device/firmware limitation. If playback control is not supported on your device, consider using RTSP/FLV streaming URLs or record download functionality instead.
+
+```typescript
+import { ReolinkClient } from "reolink-api";
+
+const client = new ReolinkClient({
+  host: "192.168.1.100",
+  username: "admin",
+  password: "password",
+});
+
+await client.login();
+
+const controller = client.createPlaybackController();
+
+// Start playback from a specific time
+await controller.startPlayback(0, "2025-11-10T09:00:00Z");
+
+// Seek to a different time
+await controller.seekPlayback(0, "2025-11-10T09:15:00Z");
+
+// Stop playback on specific channel
+await controller.stopPlayback(0);
+
+// Stop all playback
+await controller.stopPlayback();
+
+await client.close();
+```
+
+Or use the standalone class:
+
+```typescript
+import { ReolinkPlaybackController } from "reolink-api/playback";
+
+const controller = new ReolinkPlaybackController(client);
+await controller.startPlayback(0, "2025-11-10T09:00:00Z");
+```
+
+## PTZ Guard & Patrol
+
+Control PTZ guard mode (home position) and patrol configurations:
+
+```typescript
+import { ReolinkClient } from "reolink-api";
+
+const client = new ReolinkClient({
+  host: "192.168.1.100",
+  username: "admin",
+  password: "password",
+});
+
+await client.login();
+
+// Get guard mode status
+const guard = await client.getPtzGuard(0);
+console.log(guard); // { benable: 1, timeout: 60, channel: 0, ... }
+
+// Enable guard mode with timeout (RLC-823A/S1: guard binds to current camera position)
+// Note: cmdStr: "setPos" and bSaveCurrentPos: 1 are automatically included
+await client.setPtzGuard(0, {
+  benable: 1,
+  timeout: 60,
+});
+
+// Toggle guard mode
+await client.toggleGuardMode(0);
+
+// Get patrol configuration
+const patrol = await client.getPtzPatrol(0);
+console.log(patrol); // Array of PtzPatrolConfig objects
+
+// Set patrol configuration (RLC-823A/S1 format)
+// Note: On RLC-823A/S1 models, use preset array with id/speed/dwellTime
+await client.setPtzPatrol(0, {
+  channel: 0,
+  id: 0,
+  enable: 1,
+  preset: [
+    { id: 0, speed: 32, dwellTime: 10 },
+    { id: 1, speed: 32, dwellTime: 10 },
+  ],
+});
+
+// Start patrol route
+await client.startPatrol(0, 0);
+
+// Stop patrol route
+await client.stopPatrol(0, 0);
+
+await client.close();
+```
+
+**⚠️ Device Compatibility Note:** Guard and patrol modes are not supported on all Reolink devices. Some models may return error code -9 ("not support"). Check device capabilities with `reolink capabilities`.
+
+**📝 RLC-823A/S1 Specific Notes:**
+- Guard mode: Binds to the current PTZ position (no preset ID needed). Move PTZ to desired position, then call `setPtzGuard()`. The SDK automatically includes `cmdStr: "setPos"` and `bSaveCurrentPos: 1` in the request.
+- Patrol routes: Use `preset` array with `{ id, speed, dwellTime }` format (not `points` with `presetId`/`stayTime`). The `channel` field must be included in the `PtzPatrolConfig` object.
+- Patrol execution: Use `StartPatrol` and `StopPatrol` operations (capitalized) via `PtzCtrl` command.
 
 ## Examples
 

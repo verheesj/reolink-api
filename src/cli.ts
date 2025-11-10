@@ -15,7 +15,16 @@ import {
   nvrPlaybackFlvUrl,
 } from "./stream.js";
 import { search as searchRecord, download as downloadRecord } from "./record.js";
-import { getPtzPreset, ptzCtrl } from "./ptz.js";
+import {
+  getPtzPreset,
+  ptzCtrl,
+  getPtzGuard,
+  setPtzGuard,
+  getPtzPatrol,
+  setPtzPatrol,
+  startPatrol,
+  stopPatrol,
+} from "./ptz.js";
 import { getAiCfg, getAiState } from "./ai.js";
 import { getAlarm, getMdState } from "./alarm.js";
 import { detectCapabilities } from "./capabilities.js";
@@ -128,6 +137,7 @@ Commands:
   capabilities              Show device capabilities
   events listen [--interval MS]  Listen for motion/AI events (JSON output)
   snap [--channel N] [--file out.jpg]  Capture snapshot (JPEG)
+  playback <start|stop|seek> [options]  Control playback streams
   <command> [json_payload]  Generic API command
 
 Examples:
@@ -381,7 +391,7 @@ async function main() {
         } else if (cmd === "ptz") {
           if (i >= args.length) {
             console.error(
-              "Error: ptz command requires a subcommand (list-presets|goto|start-patrol|stop-patrol)"
+              "Error: ptz command requires a subcommand (list-presets|goto|start-patrol|stop-patrol|guard|patrol)"
             );
             process.exit(1);
           }
@@ -393,54 +403,315 @@ async function main() {
           let presetId = 0;
           let patrolId = 0;
 
-          while (i < args.length && args[i].startsWith("--")) {
-            if (args[i] === "--channel" && i + 1 < args.length) {
-              channel = parseInt(args[i + 1], 10);
-              i += 2;
+          // Handle guard subcommands
+          if (subcmd === "guard") {
+            if (i >= args.length) {
+              console.error("Error: ptz guard requires a subcommand (get|set)");
+              console.error("  get --channel N          Get guard mode configuration");
+              console.error("  set --channel N --enable true|false [--timeout 60]  Set guard mode");
+              process.exit(1);
+            }
+            const guardSubcmd = args[i];
+            i++;
+
+            while (i < args.length && args[i].startsWith("--")) {
+              if (args[i] === "--channel" && i + 1 < args.length) {
+                channel = parseInt(args[i + 1], 10);
+                i += 2;
+              } else {
+                i++;
+              }
+            }
+
+            if (guardSubcmd === "get") {
+              try {
+                result = await getPtzGuard(client, channel);
+              } catch (error) {
+                if (error instanceof Error && error.message.includes("rspCode: -9")) {
+                  console.error(
+                    "This device does not support PTZ guard mode (rspCode: -9)."
+                  );
+                  console.error("Check device capabilities with: reolink capabilities");
+                  process.exit(1);
+                }
+                throw error;
+              }
+            } else if (guardSubcmd === "set") {
+              let enabled: boolean | undefined;
+              let timeout: number = 60;
+
+              while (i < args.length && args[i].startsWith("--")) {
+                if (args[i] === "--enable" && i + 1 < args.length) {
+                  const enableVal = args[i + 1].toLowerCase();
+                  enabled = enableVal === "true" || enableVal === "1" || enableVal === "on";
+                  i += 2;
+                } else if (args[i] === "--timeout" && i + 1 < args.length) {
+                  timeout = parseInt(args[i + 1], 10);
+                  i += 2;
+                } else if (args[i] === "--channel" && i + 1 < args.length) {
+                  channel = parseInt(args[i + 1], 10);
+                  i += 2;
+                } else {
+                  i++;
+                }
+              }
+
+              if (enabled === undefined) {
+                console.error("Error: ptz guard set requires --enable (true|false)");
+                process.exit(1);
+              }
+
+              try {
+                await setPtzGuard(client, channel, {
+                  benable: enabled ? 1 : 0,
+                  timeout,
+                  cmdStr: "setPos",
+                  bSaveCurrentPos: 1,
+                });
+                result = { status: "ok", message: `Guard mode ${enabled ? "enabled" : "disabled"}` };
+              } catch (error) {
+                if (error instanceof Error) {
+                  if (error.message.includes("rspCode: -9") || error.message.includes("not support")) {
+                    console.error(
+                      "This device does not support PTZ guard mode (rspCode: -9)."
+                    );
+                    console.error("Check device capabilities with: reolink capabilities");
+                    process.exit(1);
+                  } else if (error.message.includes("rspCode: -1") || error.message.includes("not exist")) {
+                    console.error("Error: Invalid preset or position (rspCode: -1)");
+                    console.error("Note: For RLC-823A/S1, guard mode binds to the current camera position.");
+                    console.error("Move the PTZ to the desired position, then call this command again.");
+                    process.exit(1);
+                  }
+                }
+                throw error;
+              }
             } else {
+              console.error(`Error: Unknown ptz guard subcommand: ${guardSubcmd}`);
+              console.error("Valid subcommands: get, set");
+              process.exit(1);
+            }
+          } else if (subcmd === "patrol") {
+            if (i >= args.length) {
+              console.error("Error: ptz patrol requires a subcommand (get|set|start|stop)");
+              console.error("  get --channel N          Get patrol configuration");
+              console.error("  set --channel N --file <path>  Set patrol configuration from JSON file");
+              console.error("  start --channel N --id <patrol ID>  Start a patrol route");
+              console.error("  stop --channel N --id <patrol ID>  Stop a patrol route");
+              process.exit(1);
+            }
+            const patrolSubcmd = args[i];
+            i++;
+
+            while (i < args.length && args[i].startsWith("--")) {
+              if (args[i] === "--channel" && i + 1 < args.length) {
+                channel = parseInt(args[i + 1], 10);
+                i += 2;
+              } else {
+                i++;
+              }
+            }
+
+            if (patrolSubcmd === "get") {
+              try {
+                result = await getPtzPatrol(client, channel);
+              } catch (error) {
+                if (error instanceof Error && error.message.includes("rspCode: -9")) {
+                  console.error(
+                    "This device does not support PTZ patrol mode (rspCode: -9)."
+                  );
+                  console.error("Check device capabilities with: reolink capabilities");
+                  process.exit(1);
+                }
+                throw error;
+              }
+            } else if (patrolSubcmd === "set") {
+              let configFile: string | undefined;
+
+              while (i < args.length && args[i].startsWith("--")) {
+                if (args[i] === "--file" && i + 1 < args.length) {
+                  configFile = args[i + 1];
+                  i += 2;
+                } else if (args[i] === "--channel" && i + 1 < args.length) {
+                  channel = parseInt(args[i + 1], 10);
+                  i += 2;
+                } else {
+                  i++;
+                }
+              }
+
+              if (!configFile) {
+                console.error("Error: ptz patrol set requires --file <path>");
+                process.exit(1);
+              }
+
+              try {
+                const { promises: fs } = await import("fs");
+                const configContent = await fs.readFile(configFile, "utf-8");
+                const config = JSON.parse(configContent);
+                result = await setPtzPatrol(client, channel, config);
+                result = { status: "ok", message: "Patrol configuration updated" };
+              } catch (error) {
+                if (error instanceof Error) {
+                  if (error.message.includes("rspCode: -9") || error.message.includes("not support")) {
+                    console.error(
+                      "This device does not support PTZ patrol mode (rspCode: -9)."
+                    );
+                    console.error("Check device capabilities with: reolink capabilities");
+                    process.exit(1);
+                  } else if (error.message.includes("rspCode: -4") || error.message.includes("param error")) {
+                    console.error("Error: Parameter format not supported on this device (rspCode: -4)");
+                    console.error("For RLC-823A/S1, use format: { id: 0, enable: 1, preset: [{ id, speed, dwellTime }] }");
+                    process.exit(1);
+                  } else if (error.message.includes("rspCode: -1") || error.message.includes("not exist")) {
+                    console.error("Error: Invalid preset or position (rspCode: -1)");
+                    console.error("Ensure all preset IDs in the patrol configuration exist.");
+                    process.exit(1);
+                  }
+                  console.error(`Error: ${error.message}`);
+                } else {
+                  console.error(`Error: ${String(error)}`);
+                }
+                process.exit(1);
+              }
+            } else if (patrolSubcmd === "start") {
+              while (i < args.length && args[i].startsWith("--")) {
+                if (args[i] === "--channel" && i + 1 < args.length) {
+                  channel = parseInt(args[i + 1], 10);
+                  i += 2;
+                } else if (args[i] === "--id" && i + 1 < args.length) {
+                  patrolId = parseInt(args[i + 1], 10);
+                  i += 2;
+                } else {
+                  i++;
+                }
+              }
+
+              if (patrolId === 0 && args[i] && !args[i].startsWith("--")) {
+                patrolId = parseInt(args[i], 10);
+                i++;
+              }
+
+              if (patrolId === 0) {
+                console.error("Error: ptz patrol start requires --id <patrol ID>");
+                process.exit(1);
+              }
+
+              try {
+                await startPatrol(client, channel, patrolId);
+                result = { status: "ok", message: `Patrol route ${patrolId} started` };
+              } catch (error) {
+                if (error instanceof Error) {
+                  if (error.message.includes("rspCode: -9") || error.message.includes("not support")) {
+                    console.error(
+                      "This device does not support PTZ patrol mode (rspCode: -9)."
+                    );
+                    console.error("Check device capabilities with: reolink capabilities");
+                    process.exit(1);
+                  }
+                  console.error(`Error: ${error.message}`);
+                } else {
+                  console.error(`Error: ${String(error)}`);
+                }
+                process.exit(1);
+              }
+            } else if (patrolSubcmd === "stop") {
+              while (i < args.length && args[i].startsWith("--")) {
+                if (args[i] === "--channel" && i + 1 < args.length) {
+                  channel = parseInt(args[i + 1], 10);
+                  i += 2;
+                } else if (args[i] === "--id" && i + 1 < args.length) {
+                  patrolId = parseInt(args[i + 1], 10);
+                  i += 2;
+                } else {
+                  i++;
+                }
+              }
+
+              if (patrolId === 0 && args[i] && !args[i].startsWith("--")) {
+                patrolId = parseInt(args[i], 10);
+                i++;
+              }
+
+              if (patrolId === 0) {
+                console.error("Error: ptz patrol stop requires --id <patrol ID>");
+                process.exit(1);
+              }
+
+              try {
+                await stopPatrol(client, channel, patrolId);
+                result = { status: "ok", message: `Patrol route ${patrolId} stopped` };
+              } catch (error) {
+                if (error instanceof Error) {
+                  if (error.message.includes("rspCode: -9") || error.message.includes("not support")) {
+                    console.error(
+                      "This device does not support PTZ patrol mode (rspCode: -9)."
+                    );
+                    console.error("Check device capabilities with: reolink capabilities");
+                    process.exit(1);
+                  }
+                  console.error(`Error: ${error.message}`);
+                } else {
+                  console.error(`Error: ${String(error)}`);
+                }
+                process.exit(1);
+              }
+            } else {
+              console.error(`Error: Unknown ptz patrol subcommand: ${patrolSubcmd}`);
+              console.error("Valid subcommands: get, set, start, stop");
+              process.exit(1);
+            }
+          } else {
+            // Original PTZ commands
+            while (i < args.length && args[i].startsWith("--")) {
+              if (args[i] === "--channel" && i + 1 < args.length) {
+                channel = parseInt(args[i + 1], 10);
+                i += 2;
+              } else {
+                i++;
+              }
+            }
+
+            // Parse positional arguments
+            if (subcmd === "goto" && i < args.length) {
+              presetId = parseInt(args[i], 10);
+              i++;
+            } else if (subcmd === "start-patrol" && i < args.length) {
+              patrolId = parseInt(args[i], 10);
               i++;
             }
-          }
 
-          // Parse positional arguments
-          if (subcmd === "goto" && i < args.length) {
-            presetId = parseInt(args[i], 10);
-            i++;
-          } else if (subcmd === "start-patrol" && i < args.length) {
-            patrolId = parseInt(args[i], 10);
-            i++;
-          }
-
-          if (subcmd === "list-presets") {
-            result = await getPtzPreset(client, channel);
-          } else if (subcmd === "goto") {
-            if (presetId === 0) {
-              console.error("Error: ptz goto requires a preset ID");
+            if (subcmd === "list-presets") {
+              result = await getPtzPreset(client, channel);
+            } else if (subcmd === "goto") {
+              if (presetId === 0) {
+                console.error("Error: ptz goto requires a preset ID");
+                process.exit(1);
+              }
+              result = await ptzCtrl(client, {
+                channel,
+                op: "GotoPreset",
+                presetId,
+              });
+            } else if (subcmd === "start-patrol") {
+              if (patrolId === 0) {
+                console.error("Error: ptz start-patrol requires a patrol ID");
+                process.exit(1);
+              }
+              result = await ptzCtrl(client, {
+                channel,
+                op: "Start",
+                presetId: patrolId,
+              });
+            } else if (subcmd === "stop-patrol") {
+              result = await ptzCtrl(client, {
+                channel,
+                op: "Stop",
+              });
+            } else {
+              console.error(`Error: Unknown ptz subcommand: ${subcmd}`);
               process.exit(1);
             }
-            result = await ptzCtrl(client, {
-              channel,
-              op: "GotoPreset",
-              presetId,
-            });
-          } else if (subcmd === "start-patrol") {
-            if (patrolId === 0) {
-              console.error("Error: ptz start-patrol requires a patrol ID");
-              process.exit(1);
-            }
-            result = await ptzCtrl(client, {
-              channel,
-              op: "Start",
-              presetId: patrolId,
-            });
-          } else if (subcmd === "stop-patrol") {
-            result = await ptzCtrl(client, {
-              channel,
-              op: "Stop",
-            });
-          } else {
-            console.error(`Error: Unknown ptz subcommand: ${subcmd}`);
-            process.exit(1);
           }
         } else if (cmd === "ai") {
           if (i >= args.length) {
@@ -536,6 +807,111 @@ async function main() {
             // Write binary data to stdout (for piping)
             process.stdout.write(buffer);
             return; // Exit early, don't output JSON
+          }
+        } else if (cmd === "playback") {
+          if (i >= args.length) {
+            console.error("Error: playback command requires a subcommand (start, stop, seek)");
+            process.exit(1);
+          }
+          const subcmd = args[i];
+          i++;
+
+          const controller = client.createPlaybackController();
+
+          if (subcmd === "start") {
+            // Parse options
+            let channel = 0;
+            let startTime: string | undefined;
+
+            while (i < args.length && args[i].startsWith("--")) {
+              if (args[i] === "--channel" && i + 1 < args.length) {
+                channel = parseInt(args[i + 1], 10);
+                i += 2;
+              } else if (args[i] === "--start" && i + 1 < args.length) {
+                startTime = args[i + 1];
+                i += 2;
+              } else {
+                i++;
+              }
+            }
+
+            if (!startTime) {
+              console.error("Error: --start timestamp is required for playback start");
+              process.exit(1);
+            }
+
+            try {
+              await controller.startPlayback(channel, startTime);
+              result = { status: "ok", message: "Playback started" };
+            } catch (error) {
+              if (error instanceof Error) {
+                console.error(error.message);
+              } else {
+                console.error(`Error: ${String(error)}`);
+              }
+              process.exit(1);
+            }
+          } else if (subcmd === "stop") {
+            // Parse options
+            let channel: number | undefined;
+
+            while (i < args.length && args[i].startsWith("--")) {
+              if (args[i] === "--channel" && i + 1 < args.length) {
+                channel = parseInt(args[i + 1], 10);
+                i += 2;
+              } else {
+                i++;
+              }
+            }
+
+            try {
+              await controller.stopPlayback(channel);
+              result = { status: "ok", message: "Playback stopped" };
+            } catch (error) {
+              if (error instanceof Error) {
+                console.error(error.message);
+              } else {
+                console.error(`Error: ${String(error)}`);
+              }
+              process.exit(1);
+            }
+          } else if (subcmd === "seek") {
+            // Parse options
+            let channel = 0;
+            let seekTime: string | undefined;
+
+            while (i < args.length && args[i].startsWith("--")) {
+              if (args[i] === "--channel" && i + 1 < args.length) {
+                channel = parseInt(args[i + 1], 10);
+                i += 2;
+              } else if ((args[i] === "--time" || args[i] === "--seek") && i + 1 < args.length) {
+                seekTime = args[i + 1];
+                i += 2;
+              } else {
+                i++;
+              }
+            }
+
+            if (!seekTime) {
+              console.error("Error: --time timestamp is required for playback seek");
+              process.exit(1);
+            }
+
+            try {
+              await controller.seekPlayback(channel, seekTime);
+              result = { status: "ok", message: "Playback seeked" };
+            } catch (error) {
+              if (error instanceof Error) {
+                console.error(error.message);
+              } else {
+                console.error(`Error: ${String(error)}`);
+              }
+              process.exit(1);
+            }
+          } else {
+            console.error(`Error: Unknown playback subcommand: ${subcmd}`);
+            console.error("Valid subcommands: start, stop, seek");
+            process.exit(1);
           }
         } else if (cmd === "events") {
           if (i >= args.length) {

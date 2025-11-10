@@ -42,6 +42,10 @@
       "types": "./dist/snapshot.d.ts",
       "import": "./dist/snapshot.js"
     },
+    "./playback": {
+      "types": "./dist/playback.d.ts",
+      "import": "./dist/playback.js"
+    },
     "./endpoints/system": {
       "types": "./dist/endpoints/system.d.ts",
       "import": "./dist/endpoints/system.js"

@@ -37,3 +37,6 @@ scripts/
 # Snapshots directory
 snapshots/
 
+# Test config files
+patrol-test-config.json
+
