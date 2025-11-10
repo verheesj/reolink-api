@@ -63,6 +63,10 @@ Or use command-line flags:
 node dist/cli.js --host 192.168.1.100 --user admin --pass your-password status devinfo
 ```
 
+## Documentation
+
+- [Usage guide with detailed SDK and CLI examples](docs/USAGE.md)
+
 ## CLI Commands
 
 ### Status Commands
