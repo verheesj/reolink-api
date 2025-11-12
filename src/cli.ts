@@ -135,7 +135,7 @@ Options:
   --pass <pass>          Password (or REOLINK_NVR_PASS)
   --mode <long|short>    Connection mode (default: long)
   --insecure             Allow insecure SSL (default: true)
-  --plain                Allow insecure connections over HTTP (default: false)
+  --plain                Use HTTP instead of HTTPS (default: false)
   --debug                Enable debug logging
   --timeout <ms>         Request timeout in milliseconds
   --json                 Output JSON (default)
