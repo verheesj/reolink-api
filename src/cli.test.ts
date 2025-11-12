@@ -65,10 +65,10 @@ vi.mock("./snapshot.js", () => ({
 describe("CLI", () => {
   let originalArgv: string[];
   let originalEnv: NodeJS.ProcessEnv;
-  let consoleLogSpy: ReturnType<typeof vi.spyOn>;
-  let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
-  let processExitSpy: ReturnType<typeof vi.spyOn>;
-  let stdoutWriteSpy: ReturnType<typeof vi.spyOn>;
+  let consoleLogSpy: any;
+  let consoleErrorSpy: any;
+  let processExitSpy: any;
+  let stdoutWriteSpy: any;
 
   beforeEach(() => {
     originalArgv = process.argv;
