@@ -393,15 +393,160 @@ If required configuration is missing, the CLI aborts with a helpful message desc
 
 ### Command Groups
 
-- `status` – fetch device status (`devinfo`, `ability`, `enc`).
-- `stream` – build RTSP/RTMP/FLV/playback URLs without running an HTTP request.
-- `rec` – search and download recordings via the record helpers.
-- `ptz` – manage presets, guard mode, and patrols.
-- `ai` / `alarm` – inspect AI configuration/state and motion/alarm information.
-- `events listen` – stream motion/AI events using the polling emitter.
-- `snap` – capture snapshots to stdout or disk.
-- `playback` – invoke playback controller operations from the shell.
-- Generic – pass any CGI command name followed by an optional JSON payload to reach unsupported endpoints directly.
+#### Status Commands
+
+Fetch device information and configuration:
+
+```bash
+# Get device information
+reolink status devinfo
+
+# Get device capabilities
+reolink status ability
+
+# Get encoder configuration for channel 0
+reolink status enc --channel 0
+```
+
+#### Stream Commands
+
+Generate streaming URLs (output is JSON, not an actual stream):
+
+```bash
+# Get RTSP URL for H.265 main stream on channel 0
+reolink stream url rtsp --channel 0 --codec h265
+
+# Get RTMP URL for sub stream
+reolink stream url rtmp --channel 0 --streamType sub
+
+# Get FLV URL
+reolink stream url flv --channel 0
+
+# Get playback FLV URL for a specific timestamp
+reolink stream playback --channel 0 --start "2025-01-01T09:00:00Z"
+```
+
+#### Recording Commands
+
+Search and download recordings:
+
+```bash
+# Search for recordings in a time range
+reolink rec search --channel 0 --start "2025-01-01T00:00:00Z" --end "2025-01-01T23:59:59Z"
+
+# Download a specific recording file
+reolink rec download --channel 0 --file "rec_file.mp4" --streamType main
+```
+
+#### PTZ Commands
+
+Control pan-tilt-zoom cameras:
+
+```bash
+# List all presets for channel 0
+reolink ptz list-presets --channel 0
+
+# Go to preset 3
+reolink ptz goto 3 --channel 0
+
+# Get guard mode configuration
+reolink ptz guard get --channel 0
+
+# Enable guard mode with 60-second timeout
+reolink ptz guard set --channel 0 --enable true --timeout 60
+
+# Get patrol configuration
+reolink ptz patrol get --channel 0
+
+# Start patrol route 0
+reolink ptz patrol start --channel 0 --id 0
+
+# Stop patrol route 0
+reolink ptz patrol stop --channel 0 --id 0
+```
+
+#### AI and Alarm Commands
+
+Monitor AI detections and alarm state:
+
+```bash
+# Get AI configuration
+reolink ai cfg --channel 0
+
+# Get current AI detection state
+reolink ai state --channel 0
+
+# Get motion detection state
+reolink alarm md-state --channel 0
+
+# Get alarm status
+reolink alarm alarm
+```
+
+#### Event Listening
+
+Stream real-time motion and AI events:
+
+```bash
+# Listen for events (outputs JSON events to stdout)
+reolink events listen --interval 2000
+
+# Events are output as JSON lines:
+# {"type":"motion","channel":0,"active":true,"timestamp":"2025-01-01T12:34:56Z"}
+# {"type":"ai","channel":0,"person":true,"vehicle":false,"timestamp":"2025-01-01T12:35:01Z"}
+```
+
+#### Snapshot Commands
+
+Capture JPEG snapshots:
+
+```bash
+# Capture snapshot and save to file
+reolink snap --channel 0 --file snapshot.jpg
+
+# Capture snapshot to stdout (for piping)
+reolink snap --channel 0 > snapshot.jpg
+
+# Quiet mode (no stderr output)
+reolink snap --channel 0 --file out.jpg --quiet
+```
+
+#### Playback Commands
+
+Control NVR playback streams:
+
+```bash
+# Start playback from a specific timestamp
+reolink playback start --channel 0 --start "2025-01-01T09:00:00Z"
+
+# Seek to a different time
+reolink playback seek --channel 0 --time "2025-01-01T09:15:00Z"
+
+# Stop playback
+reolink playback stop --channel 0
+```
+
+#### Capabilities Command
+
+Detect what features the device supports:
+
+```bash
+reolink capabilities
+# or
+reolink caps
+```
+
+#### Generic API Commands
+
+Call any CGI command directly with optional JSON payload:
+
+```bash
+# Call GetDevInfo
+reolink GetDevInfo
+
+# Call with parameters
+reolink SetEnc '{"channel":0,"mainStream":{"bitRate":4096}}'
+```
 
 Each command outputs structured JSON by default, which makes it easy to integrate the CLI into scripts. Use `--pretty` for human-readable formatting or redirect binary responses (such as snapshots) to files.
 

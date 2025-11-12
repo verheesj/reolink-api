@@ -3,7 +3,11 @@
 /**
  * Reolink API CLI Tool
  * 
- * Command-line interface for the Reolink API client
+ * Command-line interface for the Reolink API client.
+ * Provides access to device status, streaming URLs, recording, PTZ control,
+ * AI/alarm monitoring, event listening, and snapshot capture.
+ * 
+ * @module cli
  */
 
 import { ReolinkClient, ReolinkMode } from "./reolink.js";
@@ -30,7 +34,20 @@ import { getAlarm, getMdState } from "./alarm.js";
 import { detectCapabilities } from "./capabilities.js";
 import { snapToBuffer, snapToFile } from "./snapshot.js";
 
-// Parse command-line arguments
+/**
+ * Parse command-line arguments into a structured configuration object.
+ * 
+ * Extracts flags (--host, --user, --pass, --mode, etc.) and separates them
+ * from the command arguments. Supports both flag-based and positional arguments.
+ * 
+ * @returns Parsed configuration containing connection settings and command array
+ * 
+ * @example
+ * ```bash
+ * reolink --host 192.168.1.100 --user admin --pass secret status devinfo
+ * # Returns: { host: "192.168.1.100", user: "admin", pass: "secret", command: ["status", "devinfo"] }
+ * ```
+ */
 function parseArgs() {
   const args = process.argv.slice(2);
   const config: {
@@ -169,6 +186,28 @@ const client = new ReolinkClient({
 // Login and get token (only in long mode)
 let loggedIn = false;
 
+/**
+ * Main CLI execution flow.
+ * 
+ * Handles login (in long mode), processes command-line arguments sequentially,
+ * dispatches to appropriate command handlers, and outputs results as JSON.
+ * Special commands like 'snap' and 'events listen' may output binary data
+ * or stream events instead of returning JSON.
+ * 
+ * @throws {Error} When login fails or command execution encounters errors
+ * 
+ * @example
+ * ```bash
+ * # Get device info
+ * reolink status devinfo
+ * 
+ * # Capture snapshot to file
+ * reolink snap --channel 0 --file out.jpg
+ * 
+ * # Listen for motion/AI events
+ * reolink events listen --interval 2000
+ * ```
+ */
 async function main() {
   try {
     // Only login in long mode
@@ -1018,7 +1057,16 @@ async function main() {
   }
 }
 
-// Setup exit handler to logout on script exit (only in long mode)
+/**
+ * Cleanup handler that logs out and closes the client connection.
+ * 
+ * Called on graceful shutdown to ensure the session is properly terminated
+ * and resources are released. Only performs logout in long mode when a
+ * session token has been established.
+ * 
+ * @remarks
+ * Suppresses logout errors during cleanup to prevent noisy exit messages.
+ */
 async function cleanup() {
   if (loggedIn && MODE === "long") {
     try {
@@ -1029,7 +1077,14 @@ async function cleanup() {
   }
 }
 
-// Handle cleanup on signals
+/**
+ * Signal handler for graceful process termination.
+ * 
+ * Invoked on SIGINT (Ctrl+C) and SIGTERM to ensure cleanup is performed
+ * before the process exits. Calls cleanup() to logout and close connections.
+ * 
+ * @param _signal - Signal name (unused, kept for signature compatibility)
+ */
 async function handleExit(_signal?: string) {
   await cleanup();
   process.exit(0);
