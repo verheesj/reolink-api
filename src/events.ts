@@ -17,6 +17,8 @@ export interface AiEvent {
   person?: boolean;
   vehicle?: boolean;
   pet?: boolean;
+  face?: boolean;
+  package?: boolean;
   [key: string]: unknown;
 }
 
@@ -33,6 +35,8 @@ interface LastState {
     person?: boolean;
     vehicle?: boolean;
     pet?: boolean;
+    face?: boolean;
+    package?: boolean;
     [key: string]: unknown;
   };
 }
@@ -152,18 +156,24 @@ export class ReolinkEventEmitter extends EventEmitter {
           person?: { state?: number };
           vehicle?: { state?: number };
           pet?: { state?: number };
+          face?: { state?: number };
+          package?: { state?: number };
           [key: string]: unknown;
         };
         person?: { state?: number };
         vehicle?: { state?: number };
         pet?: { state?: number };
+        face?: { state?: number };
+        package?: { state?: number };
         [key: string]: unknown;
       }>("GetAiState", { channel });
 
       const aiData = aiState?.value ?? aiState;
-      const personState = aiData?.person;
+      const personState = aiData?.person ?? aiData?.people;
       const vehicleState = aiData?.vehicle;
-      const petState = aiData?.pet;
+      const petState = aiData?.pet ?? aiData?.dog_cat;
+      const faceState = aiData?.face;
+      const packageState = aiData?.package;
       
       // Helper to check if state is active (handles both object with state property and direct number)
       const isStateActive = (state: unknown): boolean => {
@@ -179,11 +189,15 @@ export class ReolinkEventEmitter extends EventEmitter {
       const personActive = isStateActive(personState);
       const vehicleActive = isStateActive(vehicleState);
       const petActive = isStateActive(petState);
+      const faceActive = isStateActive(faceState);
+      const packageActive = isStateActive(packageState);
 
       const currentAiState = {
         person: personActive,
         vehicle: vehicleActive,
         pet: petActive,
+        face: faceActive,
+        package: packageActive,
       };
 
       // Check if AI state changed (not on first poll)
@@ -192,7 +206,9 @@ export class ReolinkEventEmitter extends EventEmitter {
         lastAiState !== undefined &&
         (lastAiState.person !== personActive ||
           lastAiState.vehicle !== vehicleActive ||
-          lastAiState.pet !== petActive);
+          lastAiState.pet !== petActive ||
+          lastAiState.face !== faceActive ||
+          lastAiState.package !== packageActive);
 
       if (aiChanged) {
         lastState.ai = currentAiState;
@@ -202,6 +218,8 @@ export class ReolinkEventEmitter extends EventEmitter {
           person: personActive,
           vehicle: vehicleActive,
           pet: petActive,
+          face: faceActive,
+          package: packageActive,
         } as AiEvent);
       } else {
         // Initialize state on first poll

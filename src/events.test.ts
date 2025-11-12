@@ -179,6 +179,8 @@ describe("ReolinkEventEmitter", () => {
         person: true,
         vehicle: false,
         pet: false,
+        face: false,
+        package: false
       });
 
       singleChannelEmitter.stop();
