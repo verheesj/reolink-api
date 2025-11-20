@@ -68,7 +68,7 @@ export async function getAbility(
   if (userName) {
     params.userName = userName;
   }
-  return client.api<AbilityResponse>("GetAbility", params);
+  return client.api<AbilityResponse>("GetAbility", params, 0, userName ? "POST" : "GET");
 }
 
 /**

@@ -58,10 +58,9 @@ describe("System endpoints", () => {
       expect(result).toHaveProperty("Ability");
       expect(mockFetch).toHaveBeenCalledTimes(2);
 
-      const [, requestArgs] = mockFetch.mock.calls[1];
-      const body = JSON.parse(String(requestArgs?.body ?? "[]"));
-      expect(body[0].cmd).toBe("GetAbility");
-      expect(body[0].param).toEqual({});
+      const [ target ] = mockFetch.mock.calls[1];
+      const url = new URL(target);
+      expect(url.searchParams.get('cmd')).toBe("GetAbility");
     });
 
     it("should get device ability with userName parameter", async () => {

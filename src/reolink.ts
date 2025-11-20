@@ -87,9 +87,10 @@ export class ReolinkClient {
   async api<T = unknown>(
     command: string,
     params: Record<string, unknown> = {},
-    action: 0 | 1 = 0
+    action: 0 | 1 = 0,
+    method: "POST" | "GET" = "POST"
   ): Promise<T> {
-    return this.withToken<T>(command, params, action);
+    return this.withToken<T>(command, params, action, 0, method);
   }
 
   /**
@@ -98,7 +99,8 @@ export class ReolinkClient {
   private async apiInternal<T = unknown>(
     command: string,
     params: Record<string, unknown> = {},
-    action: 0 | 1 = 0
+    action: 0 | 1 = 0,
+    method: "POST" | "GET" = "POST"
   ): Promise<T> {
     const request: ReolinkRequest = {
       cmd: command,
@@ -117,6 +119,11 @@ export class ReolinkClient {
       // Long connection mode: use token
       queryParams = `cmd=${command}&token=${this.token}`;
     }
+    if (method === "GET") {
+      for (const key in params) {
+        queryParams += `&${key}=${encodeURIComponent(params[key] as string)}`;
+      }
+    }
 
     const target = `${this.url}?${queryParams}`;
 
@@ -128,11 +135,11 @@ export class ReolinkClient {
 
     try {
       const fetchOptions: RequestInit = {
-        method: "POST",
+        method,
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify([request]),
+        ...(method === "POST" && { body: JSON.stringify([request]) }),
       };
 
       // Create an HTTPS agent that ignores certificate errors (equivalent to curl -k)
@@ -298,7 +305,8 @@ export class ReolinkClient {
     command: string,
     params: Record<string, unknown> = {},
     action: 0 | 1 = 0,
-    retryCount = 0
+    retryCount = 0,
+    method: "POST" | "GET" = "POST"
   ): Promise<T> {
     if (this.closed) {
       throw new Error("Client is closed");
@@ -306,13 +314,13 @@ export class ReolinkClient {
 
     // In short mode, skip token management
     if (this.mode === "short") {
-      return this.apiInternal<T>(command, params, action);
+      return this.apiInternal<T>(command, params, action, method);
     }
 
     await this.ensureToken();
 
     try {
-      return await this.apiInternal<T>(command, params, action);
+      return await this.apiInternal<T>(command, params, action, method);
     } catch (error) {
       // Check if it's a token-related error (401 or specific error codes)
       if (error instanceof ReolinkHttpError) {
@@ -330,7 +338,7 @@ export class ReolinkClient {
           this.token = "null";
           this.tokenExpiryTime = 0;
           // Retry once after re-login
-          return this.withToken<T>(command, params, action, retryCount + 1);
+          return this.withToken<T>(command, params, action, retryCount + 1, method);
         }
       }
       throw error;
