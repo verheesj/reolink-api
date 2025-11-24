@@ -11,6 +11,7 @@
  */
 
 import { ReolinkClient, ReolinkMode } from "./reolink.js";
+import "dotenv/config";
 import { getAbility, getDevInfo, getEnc, getChannelInfo, getChannelStatus } from "./endpoints/system.js";
 import {
   rtspUrl,

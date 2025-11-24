@@ -37,6 +37,9 @@
 
 ### 📊 **Device Management**
 - Device information and capabilities
+- System configuration (Name, Time, Maintenance)
+- HDD management and formatting
+- Firmware upgrade and status monitoring
 - Encoding configuration (resolution, codec, FPS, bitrate)
 - Multi-channel support for NVRs
 - Channel status monitoring
@@ -224,6 +227,12 @@ npx tsx examples/status.ts
 ```
 Queries device information, abilities, and encoding configuration.
 
+### ⚙️ **System Management**
+```bash
+npx tsx examples/system_management.ts
+```
+Demonstrates getting/setting device name, time, maintenance settings, HDD info, and firmware status.
+
 ### 📹 **Camera Enumeration**
 ```bash
 npx tsx examples/cameras.ts
@@ -254,12 +263,13 @@ npx reolink-nvr-api [command]
 
 ### Configuration
 
-Set environment variables or use command-line flags:
+Set environment variables in a `.env` file or use command-line flags:
 
 ```bash
-export REOLINK_NVR_HOST="192.168.1.100"
-export REOLINK_NVR_USER="admin"
-export REOLINK_NVR_PASS="password"
+# .env file
+REOLINK_NVR_HOST=192.168.1.100
+REOLINK_NVR_USER=admin
+REOLINK_NVR_PASS=password
 ```
 
 ### Common Commands

@@ -76,6 +76,63 @@ export interface ChannelStatus {
   status: ChannelStatusInfo[];
 }
 
+export interface DevNameResponse {
+  DevName: {
+    name: string;
+  };
+}
+
+export interface TimeInfo {
+  year: number;
+  mon: number;
+  day: number;
+  hour: number;
+  min: number;
+  sec: number;
+  timeFmt: string;
+  dateFmt: string;
+}
+
+export interface TimeResponse {
+  Time: TimeInfo;
+}
+
+export interface AutoMaintInfo {
+  day: number;
+  hour: number;
+  min: number;
+}
+
+export interface AutoMaintResponse {
+  AutoMaint: AutoMaintInfo;
+}
+
+export interface HddInfo {
+  capacity: number;
+  hddName: string;
+  hddNo: number;
+  status: number;
+  type: string;
+}
+
+export interface HddInfoResponse {
+  HddInfo: HddInfo[];
+}
+
+export interface UpgradeStatusResponse {
+  UpgradeStatus: {
+    status: number;
+    progress: number;
+    message: string;
+  };
+}
+
+export interface AutoUpgradeResponse {
+  AutoUpgrade: {
+    enable: number;
+  };
+}
+
 /**
  * Get device capability information
  * 
@@ -122,6 +179,30 @@ export async function getAbility(
  */
 export async function getDevInfo(client: ReolinkClient): Promise<DevInfoResponse> {
   return client.api<DevInfoResponse>("GetDevInfo", {});
+}
+
+/**
+ * Set device name
+ * 
+ * Sets the user-assigned device name.
+ * 
+ * @param client - An authenticated ReolinkClient instance
+ * @param name - The new device name
+ * @param channel - Channel number (default: 0)
+ * @returns Promise resolving to the response
+ * 
+ * @example
+ * ```typescript
+ * await setDevName(client, "My Camera");
+ * ```
+ */
+export async function setDevName(client: ReolinkClient, name: string, channel: number = 0): Promise<void> {
+  await client.api("SetDevName", {
+    channel,
+    DevName: {
+      name: name
+    }
+  });
 }
 
 /**
@@ -190,4 +271,177 @@ export async function getChannelInfo(client: ReolinkClient, channel = 0): Promis
  */
 export async function getChannelStatus(client: ReolinkClient): Promise<ChannelStatus> {
   return client.api<ChannelStatus>("GetChannelstatus", {});
+}
+
+/**
+ * Get device name
+ * 
+ * Retrieves the user-assigned device name.
+ * 
+ * @param client - An authenticated ReolinkClient instance
+ * @param channel - Channel number (default: 0)
+ * @returns Promise resolving to device name
+ */
+export async function getDevName(client: ReolinkClient, channel: number = 0): Promise<DevNameResponse> {
+  return client.api<DevNameResponse>("GetDevName", { channel });
+}
+
+/**
+ * Get system time
+ * 
+ * Retrieves the current system time and date format settings.
+ * 
+ * @param client - An authenticated ReolinkClient instance
+ * @returns Promise resolving to system time information
+ */
+export async function getTime(client: ReolinkClient): Promise<TimeResponse> {
+  return client.api<TimeResponse>("GetTime", {});
+}
+
+/**
+ * Set system time
+ * 
+ * Sets the system time.
+ * 
+ * @param client - An authenticated ReolinkClient instance
+ * @param timeInfo - Time information to set
+ * @returns Promise resolving to the response
+ */
+export async function setTime(client: ReolinkClient, timeInfo: Partial<TimeInfo>): Promise<void> {
+  await client.api("SetTime", { Time: timeInfo });
+}
+
+/**
+ * Get auto maintenance settings
+ * 
+ * Retrieves the automatic maintenance (reboot) schedule.
+ * 
+ * @param client - An authenticated ReolinkClient instance
+ * @returns Promise resolving to auto maintenance settings
+ */
+export async function getAutoMaint(client: ReolinkClient): Promise<AutoMaintResponse> {
+  return client.api<AutoMaintResponse>("GetAutoMaint", {});
+}
+
+/**
+ * Set auto maintenance settings
+ * 
+ * Sets the automatic maintenance (reboot) schedule.
+ * 
+ * @param client - An authenticated ReolinkClient instance
+ * @param autoMaintInfo - Auto maintenance settings
+ * @returns Promise resolving to the response
+ */
+export async function setAutoMaint(client: ReolinkClient, autoMaintInfo: AutoMaintInfo): Promise<void> {
+  await client.api("SetAutoMaint", { AutoMaint: autoMaintInfo });
+}
+
+/**
+ * Get HDD information
+ * 
+ * Retrieves information about installed hard drives.
+ * 
+ * @param client - An authenticated ReolinkClient instance
+ * @returns Promise resolving to HDD information
+ */
+export async function getHddInfo(client: ReolinkClient): Promise<HddInfoResponse> {
+  return client.api<HddInfoResponse>("GetHddInfo", {});
+}
+
+/**
+ * Format HDD
+ * 
+ * Formats the specified hard drive.
+ * 
+ * @param client - An authenticated ReolinkClient instance
+ * @param hddNo - HDD number to format
+ * @returns Promise resolving to the response
+ */
+export async function formatHdd(client: ReolinkClient, hddNo: number): Promise<void> {
+  await client.api("Format", { HddInfo: { hddNo } });
+}
+
+/**
+ * Reboot device
+ * 
+ * Reboots the device.
+ * 
+ * @param client - An authenticated ReolinkClient instance
+ * @returns Promise resolving to the response
+ */
+export async function reboot(client: ReolinkClient): Promise<void> {
+  await client.api("Reboot", {});
+}
+
+/**
+ * Restore device
+ * 
+ * Restores the device to factory settings.
+ * 
+ * @param client - An authenticated ReolinkClient instance
+ * @returns Promise resolving to the response
+ */
+export async function restore(client: ReolinkClient): Promise<void> {
+  await client.api("Restore", {});
+}
+
+/**
+ * Check for firmware update
+ * 
+ * Checks if a new firmware version is available.
+ * 
+ * @param client - An authenticated ReolinkClient instance
+ * @returns Promise resolving to the response
+ */
+export async function checkFirmware(client: ReolinkClient): Promise<void> {
+  await client.api("CheckFirmware", {});
+}
+
+/**
+ * Upgrade firmware online
+ * 
+ * Starts the online firmware upgrade process.
+ * 
+ * @param client - An authenticated ReolinkClient instance
+ * @returns Promise resolving to the response
+ */
+export async function upgradeOnline(client: ReolinkClient): Promise<void> {
+  await client.api("UpgradeOnline", {});
+}
+
+/**
+ * Get upgrade status
+ * 
+ * Retrieves the status of the firmware upgrade process.
+ * 
+ * @param client - An authenticated ReolinkClient instance
+ * @returns Promise resolving to upgrade status
+ */
+export async function getUpgradeStatus(client: ReolinkClient): Promise<UpgradeStatusResponse> {
+  return client.api<UpgradeStatusResponse>("UpgradeStatus", {});
+}
+
+/**
+ * Get auto upgrade settings
+ * 
+ * Retrieves the automatic firmware upgrade settings.
+ * 
+ * @param client - An authenticated ReolinkClient instance
+ * @returns Promise resolving to auto upgrade settings
+ */
+export async function getAutoUpgrade(client: ReolinkClient): Promise<AutoUpgradeResponse> {
+  return client.api<AutoUpgradeResponse>("GetAutoUpgrade", {});
+}
+
+/**
+ * Set auto upgrade settings
+ * 
+ * Sets the automatic firmware upgrade settings.
+ * 
+ * @param client - An authenticated ReolinkClient instance
+ * @param enable - 1 to enable, 0 to disable
+ * @returns Promise resolving to the response
+ */
+export async function setAutoUpgrade(client: ReolinkClient, enable: number): Promise<void> {
+  await client.api("SetAutoUpgrade", { AutoUpgrade: { enable } });
 }
