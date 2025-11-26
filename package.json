@@ -1,6 +1,6 @@
 {
   "name": "reolink-nvr-api",
-  "version": "0.3.0",
+  "version": "0.3.6",
   "description": "TypeScript SDK and CLI for Reolink NVR/Camera HTTP API - Control PTZ, snapshots, streams, playback, AI detection, and more",
   "type": "module",
   "main": "./dist/reolink.js",
@@ -101,11 +101,11 @@
     "sdk",
     "cli"
   ],
-  "author": "Jonathan Verhees <jonathan@verhees.uk>",
+  "authors": "Jonathan Verhees <jonathan@verhees.uk>,Tanner B",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/verheesj/reolink-api.git"
+    "url": "git+https://github.com/tannerpace/reolink-api.git"
   },
   "bugs": {
     "url": "https://github.com/verheesj/reolink-api/issues"
