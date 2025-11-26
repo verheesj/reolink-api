@@ -2,9 +2,7 @@
  * Snapshot and thumbnail capture utilities
  */
 
-import https from "https";
 import { promises as fs } from "fs";
-import { Agent as UndiciAgent, fetch as undiciFetch } from "undici";
 import { ReolinkClient } from "./reolink.js";
 
 export interface SnapshotOptions {
@@ -22,74 +20,12 @@ export async function snapToBuffer(
 ): Promise<Buffer> {
   const debug = process.env.DEBUG?.includes("reolink:snapshot") ?? false;
 
-  // Get client properties using public getters
-  const host = client.getHost();
-  const username = client.getUsername();
-  const password = client.getPassword();
-  const mode = client.getMode();
-  const insecure = client.isInsecure();
-  const token = mode === "long" ? client.getToken() : "null";
-  const fetchImpl = client.getFetchImpl();
-
-  // Build URL for Snap command
-  // Snap is a GET request, not POST, and returns binary JPEG data
-  const baseUrl = `https://${host}/cgi-bin/api.cgi`;
-  let queryParams: string;
-
-  if (mode === "short") {
-    // Short connection mode: include user and password
-    const user = encodeURIComponent(username);
-    const pass = encodeURIComponent(password);
-    queryParams = `cmd=Snap&channel=${channel}&user=${user}&password=${pass}`;
-  } else {
-    // Long connection mode: use token
-    queryParams = `cmd=Snap&channel=${channel}&token=${token}`;
-  }
-
-  const target = `${baseUrl}?${queryParams}`;
-
   if (debug) {
-    console.error(`[reolink:snapshot] Fetching snapshot from: ${target}`);
+    console.error(`[reolink:snapshot] Capturing snapshot for channel ${channel}`);
   }
 
-  const fetchOptions: RequestInit = {
-    method: "GET",
-  };
-
-  // Create an HTTPS agent that ignores certificate errors
-  if (insecure) {
-    // Check if we're using undici fetch (which uses dispatcher instead of agent)
-    // Compare function references to detect undici fetch
-    const isUndiciFetch = fetchImpl === undiciFetch || 
-                         (fetchImpl.toString().includes('undici') && fetchImpl !== globalThis.fetch);
-    
-    if (isUndiciFetch) {
-      // Use undici's dispatcher for undici fetch
-      const dispatcher = new UndiciAgent({
-        connect: {
-          rejectUnauthorized: false,
-        },
-      });
-      (fetchOptions as { dispatcher?: UndiciAgent }).dispatcher = dispatcher;
-    } else {
-      // Use Node.js https agent for other fetch implementations
-      const agent = new https.Agent({
-        rejectUnauthorized: false,
-      });
-      (fetchOptions as { agent?: https.Agent }).agent = agent;
-    }
-  }
-
-  const response = await fetchImpl(target, fetchOptions);
-
-  if (!response.ok) {
-    throw new Error(
-      `Failed to capture snapshot: HTTP ${response.status} ${response.statusText}`
-    );
-  }
-
-  // Get binary data as ArrayBuffer
-  const arrayBuffer = await response.arrayBuffer();
+  // Use the client's apiBinary method which handles authentication and token refresh
+  const arrayBuffer = await client.apiBinary("Snap", { channel });
   const buffer = Buffer.from(arrayBuffer);
 
   // Verify it's a JPEG (starts with FFD8)

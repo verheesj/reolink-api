@@ -5,20 +5,20 @@
  * of the bash script reolink.sh
  */
 
-import https from "https";
-import { fetch as undiciFetch, Agent as UndiciAgent } from "undici";
-import {
-  ReolinkRequest,
-  ReolinkResponse,
-  ReolinkResponseError,
-  ReolinkHttpError,
-  ReolinkToken,
-} from "./types.js";
+import { RequestInit, Response, fetch as undiciFetch } from "undici";
 import {
   ReolinkEventEmitter,
   ReolinkEventEmitterOptions,
 } from "./events.js";
 import { ReolinkPlaybackController } from "./playback.js";
+import {
+  ReolinkHttpError,
+  ReolinkRequest,
+  ReolinkResponse,
+  ReolinkResponseError,
+  ReolinkToken,
+} from "./types.js";
+import { createFetchOptions } from "./utils/https-agent.js";
 
 interface LoginParams {
   User: {
@@ -41,7 +41,7 @@ export interface ReolinkOptions {
   insecure?: boolean;
   plain?: boolean;
   debug?: boolean;
-  fetch?: typeof fetch;
+  fetch?: (input: string | URL | globalThis.Request, init?: RequestInit) => Promise<Response>;
 }
 
 export class ReolinkClient {
@@ -57,7 +57,6 @@ export class ReolinkClient {
   private tokenExpiryTime: number = 0; // Timestamp when token expires
   private url: string;
   private fetchImpl: (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
-  private useUndiciFetch: boolean;
   private closed: boolean = false;
   private eventEmitters: Set<ReolinkEventEmitter> = new Set();
 
@@ -73,10 +72,8 @@ export class ReolinkClient {
     // Otherwise use the provided fetch or default to global fetch
     if (options.fetch) {
       this.fetchImpl = options.fetch;
-      this.useUndiciFetch = false;
     } else {
       this.fetchImpl = (this.insecure ? undiciFetch : fetch) as typeof fetch;
-      this.useUndiciFetch = this.insecure;
     }
     this.url = `${this.plain ? 'http' : 'https'}://${this.host}/cgi-bin/api.cgi`;
   }
@@ -91,6 +88,17 @@ export class ReolinkClient {
     method: "POST" | "GET" = "POST"
   ): Promise<T> {
     return this.withToken<T>(command, params, action, 0, method);
+  }
+
+  /**
+   * Make a binary API call (e.g., Snap command) with automatic token refresh
+   * Returns raw binary data as ArrayBuffer
+   */
+  async apiBinary(
+    command: string,
+    params: Record<string, unknown> = {}
+  ): Promise<ArrayBuffer> {
+    return this.withTokenBinary(command, params);
   }
 
   /**
@@ -134,32 +142,13 @@ export class ReolinkClient {
     }
 
     try {
-      const fetchOptions: RequestInit = {
+      const fetchOptions = createFetchOptions(this.insecure, this.fetchImpl, {
         method,
         headers: {
           "Content-Type": "application/json",
         },
         ...(method === "POST" && { body: JSON.stringify([request]) }),
-      };
-
-      // Create an HTTPS agent that ignores certificate errors (equivalent to curl -k)
-      if (this.insecure) {
-        if (this.useUndiciFetch) {
-          // Use undici's dispatcher for undici fetch
-          const dispatcher = new UndiciAgent({
-            connect: {
-              rejectUnauthorized: false,
-            },
-          });
-          (fetchOptions as { dispatcher?: UndiciAgent }).dispatcher = dispatcher;
-        } else {
-          // Use Node.js https agent for other fetch implementations
-          const agent = new https.Agent({
-            rejectUnauthorized: false,
-          });
-          (fetchOptions as { agent?: https.Agent }).agent = agent;
-        }
-      }
+      });
 
       const response = await this.fetchImpl(target, fetchOptions);
 
@@ -203,6 +192,108 @@ export class ReolinkClient {
   }
 
   /**
+   * Internal method for binary API calls (e.g., Snap command)
+   * Returns raw ArrayBuffer instead of JSON
+   */
+  private async apiInternalBinary(
+    command: string,
+    params: Record<string, unknown> = {}
+  ): Promise<ArrayBuffer> {
+    // Build query string based on mode
+    let queryParams: string;
+    if (this.mode === "short") {
+      // Short connection mode: include user and password in query params
+      const user = encodeURIComponent(this.username);
+      const pass = encodeURIComponent(this.password);
+      queryParams = `cmd=${command}&user=${user}&password=${pass}`;
+    } else {
+      // Long connection mode: use token
+      queryParams = `cmd=${command}&token=${this.token}`;
+    }
+
+    // Add additional parameters
+    for (const key in params) {
+      queryParams += `&${key}=${encodeURIComponent(params[key] as string)}`;
+    }
+
+    const target = `${this.url}?${queryParams}`;
+
+    if (this.debug) {
+      console.error(">>> BINARY REQUEST >>>");
+      console.error(`TARGET: ${target}`);
+      console.error(`PARAMS: ${JSON.stringify(params)}`);
+    }
+
+    try {
+      const fetchOptions = createFetchOptions(this.insecure, this.fetchImpl, {
+        method: "GET",
+      });
+
+      const response = await this.fetchImpl(target, fetchOptions);
+
+      if (!response.ok) {
+        throw new ReolinkHttpError(
+          response.status,
+          response.status,
+          `HTTP error! status: ${response.status}`,
+          command
+        );
+      }
+
+      const arrayBuffer = await response.arrayBuffer();
+
+      if (this.debug) {
+        console.error("<<< BINARY RESPONSE <<<");
+        console.error(`Received ${arrayBuffer.byteLength} bytes`);
+      }
+
+      return arrayBuffer;
+    } catch (error) {
+      if (error instanceof ReolinkHttpError) {
+        throw error;
+      }
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error(`Unexpected error: ${String(error)}`);
+    }
+  }
+
+  /**
+   * Wrapper for binary API calls that handles token refresh on 401/invalid token errors
+   */
+  private async withTokenBinary(
+    command: string,
+    params: Record<string, unknown> = {},
+    retryCount = 0
+  ): Promise<ArrayBuffer> {
+    if (this.closed) {
+      throw new Error("Client is closed");
+    }
+
+    // In short mode, skip token management
+    if (this.mode === "short") {
+      return this.apiInternalBinary(command, params);
+    }
+
+    await this.ensureToken();
+
+    try {
+      return await this.apiInternalBinary(command, params);
+    } catch (error) {
+      // Check if it's a token-related error (401 or specific error codes)
+      if (error instanceof ReolinkHttpError && this.isTokenError(error) && retryCount === 0) {
+        if (this.debug) {
+          console.error("Token error detected in binary request, re-logging in and retrying...");
+        }
+        this.resetToken();
+        return this.withTokenBinary(command, params, retryCount + 1);
+      }
+      throw error;
+    }
+  }
+
+  /**
    * Login and get a session token
    */
   async login(): Promise<string> {
@@ -228,31 +319,13 @@ export class ReolinkClient {
       console.error(JSON.stringify(request, null, 2));
     }
 
-    const fetchOptions: RequestInit = {
+    const fetchOptions = createFetchOptions(this.insecure, this.fetchImpl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify([request]),
-    };
-
-    if (this.insecure) {
-      if (this.fetchImpl === undiciFetch) {
-        // Use undici's dispatcher for undici fetch
-        const dispatcher = new UndiciAgent({
-          connect: {
-            rejectUnauthorized: false,
-          },
-        });
-        (fetchOptions as { dispatcher?: UndiciAgent }).dispatcher = dispatcher;
-      } else {
-        // Use Node.js https agent for other fetch implementations
-        const agent = new https.Agent({
-          rejectUnauthorized: false,
-        });
-        (fetchOptions as { agent?: https.Agent }).agent = agent;
-      }
-    }
+    });
 
     const response = await this.fetchImpl(target, fetchOptions);
 
@@ -299,6 +372,35 @@ export class ReolinkClient {
   }
 
   /**
+   * Check if an error is a token-related error that should trigger a retry.
+   * 
+   * Detection strategy (in order of reliability):
+   * 1. HTTP 401 status code - standard unauthorized
+   * 2. rspCode -1 - Reolink's common invalid token response code
+   * 3. String matching on error detail - fallback for device-specific messages
+   * 
+   * The string matching is intentionally broad to handle various error messages
+   * from different Reolink device firmware versions.
+   */
+  private isTokenError(error: ReolinkHttpError): boolean {
+    // Primary checks: specific error codes
+    if (error.code === 401 || error.rspCode === -1) {
+      return true;
+    }
+    // Secondary check: error message content (fallback for device-specific messages)
+    const detail = error.detail.toLowerCase();
+    return detail.includes("token") || detail.includes("session");
+  }
+
+  /**
+   * Reset token state to force re-login on next request
+   */
+  private resetToken(): void {
+    this.token = "null";
+    this.tokenExpiryTime = 0;
+  }
+
+  /**
    * Wrapper for API calls that handles token refresh on 401/invalid token errors
    */
   private async withToken<T>(
@@ -323,23 +425,12 @@ export class ReolinkClient {
       return await this.apiInternal<T>(command, params, action, method);
     } catch (error) {
       // Check if it's a token-related error (401 or specific error codes)
-      if (error instanceof ReolinkHttpError) {
-        const isTokenError =
-          error.code === 401 ||
-          error.rspCode === -1 || // Common invalid token code
-          error.detail.toLowerCase().includes("token") ||
-          error.detail.toLowerCase().includes("session");
-
-        if (isTokenError && retryCount === 0) {
-          if (this.debug) {
-            console.error("Token error detected, re-logging in and retrying...");
-          }
-          // Force token refresh
-          this.token = "null";
-          this.tokenExpiryTime = 0;
-          // Retry once after re-login
-          return this.withToken<T>(command, params, action, retryCount + 1, method);
+      if (error instanceof ReolinkHttpError && this.isTokenError(error) && retryCount === 0) {
+        if (this.debug) {
+          console.error("Token error detected, re-logging in and retrying...");
         }
+        this.resetToken();
+        return this.withToken<T>(command, params, action, retryCount + 1, method);
       }
       throw error;
     }
@@ -421,31 +512,13 @@ export class ReolinkClient {
       console.error(JSON.stringify(requests, null, 2));
     }
 
-    const fetchOptions: RequestInit = {
+    const fetchOptions = createFetchOptions(this.insecure, this.fetchImpl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify(requests),
-    };
-
-    if (this.insecure) {
-      if (this.fetchImpl === undiciFetch) {
-        // Use undici's dispatcher for undici fetch
-        const dispatcher = new UndiciAgent({
-          connect: {
-            rejectUnauthorized: false,
-          },
-        });
-        (fetchOptions as { dispatcher?: UndiciAgent }).dispatcher = dispatcher;
-      } else {
-        // Use Node.js https agent for other fetch implementations
-        const agent = new https.Agent({
-          rejectUnauthorized: false,
-        });
-        (fetchOptions as { agent?: https.Agent }).agent = agent;
-      }
-    }
+    });
 
     const response = await this.fetchImpl(target, fetchOptions);
 
@@ -491,23 +564,14 @@ export class ReolinkClient {
     try {
       return await this.apiInternalMany<T>(normalized);
     } catch (error) {
-      if (error instanceof ReolinkHttpError) {
-        const isTokenError =
-          error.code === 401 ||
-          error.rspCode === -1 ||
-          error.detail.toLowerCase().includes("token") ||
-          error.detail.toLowerCase().includes("session");
-
-        if (isTokenError && retryCount === 0) {
-          if (this.debug) {
-            console.error(
-              "Token error detected while processing batch, re-logging in and retrying..."
-            );
-          }
-          this.token = "null";
-          this.tokenExpiryTime = 0;
-          return this.withTokenMany<T>(normalized, retryCount + 1);
+      if (error instanceof ReolinkHttpError && this.isTokenError(error) && retryCount === 0) {
+        if (this.debug) {
+          console.error(
+            "Token error detected while processing batch, re-logging in and retrying..."
+          );
         }
+        this.resetToken();
+        return this.withTokenMany<T>(normalized, retryCount + 1);
       }
       throw error;
     }

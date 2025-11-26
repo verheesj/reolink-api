@@ -1,6 +1,6 @@
 {
   "name": "reolink-nvr-api",
-  "version": "0.3.0",
+  "version": "0.3.6",
   "description": "TypeScript SDK and CLI for Reolink NVR/Camera HTTP API - Control PTZ, snapshots, streams, playback, AI detection, and more",
   "type": "module",
   "main": "./dist/reolink.js",
@@ -49,6 +49,14 @@
     "./endpoints/system": {
       "types": "./dist/endpoints/system.d.ts",
       "import": "./dist/endpoints/system.js"
+    },
+    "./utils/https-agent": {
+      "types": "./dist/utils/https-agent.d.ts",
+      "import": "./dist/utils/https-agent.js"
+    },
+    "./utils/url-auth": {
+      "types": "./dist/utils/url-auth.d.ts",
+      "import": "./dist/utils/url-auth.js"
     }
   },
   "bin": {
@@ -93,7 +101,7 @@
     "sdk",
     "cli"
   ],
-  "author": "Jonathan Verhees <jonathan@verhees.uk>",
+  "authors": "Jonathan Verhees <jonathan@verhees.uk>",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -104,20 +112,22 @@
   },
   "homepage": "https://github.com/verheesj/reolink-api#readme",
   "devDependencies": {
-    "@types/node": "^20.10.0",
     "@typescript-eslint/eslint-plugin": "^6.15.0",
     "@typescript-eslint/parser": "^6.15.0",
-    "@vitest/coverage-v8": "^1.1.0",
+    "@vitest/coverage-v8": "^4.0.14",
     "dotenv": "^17.2.3",
     "eslint": "^8.56.0",
     "prettier": "^3.1.1",
     "typescript": "^5.3.3",
-    "vitest": "^1.1.0"
+    "vitest": "^4.0.14"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=20.18.1"
   },
   "dependencies": {
     "undici": "^7.16.0"
+  },
+  "overrides": {
+    "undici-types": "$undici"
   }
 }
