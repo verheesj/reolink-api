@@ -53,6 +53,10 @@
     "./utils/https-agent": {
       "types": "./dist/utils/https-agent.d.ts",
       "import": "./dist/utils/https-agent.js"
+    },
+    "./utils/url-auth": {
+      "types": "./dist/utils/url-auth.d.ts",
+      "import": "./dist/utils/url-auth.js"
     }
   },
   "bin": {
