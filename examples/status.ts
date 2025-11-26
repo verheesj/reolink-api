@@ -4,8 +4,8 @@
  * Run with: npx tsx examples/status.ts
  */
 
-import { ReolinkClient } from "../src/reolink.js";
 import { getAbility, getDevInfo, getEnc } from "../src/endpoints/system.js";
+import { ReolinkClient } from "../src/reolink.js";
 
 async function main() {
   const host = process.env.REOLINK_NVR_HOST || "192.168.1.100";

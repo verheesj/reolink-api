@@ -91,6 +91,17 @@ export class ReolinkClient {
   }
 
   /**
+   * Make a binary API call (e.g., Snap command) with automatic token refresh
+   * Returns raw binary data as ArrayBuffer
+   */
+  async apiBinary(
+    command: string,
+    params: Record<string, unknown> = {}
+  ): Promise<ArrayBuffer> {
+    return this.withTokenBinary(command, params);
+  }
+
+  /**
    * Internal API call method (without token refresh wrapper)
    */
   private async apiInternal<T = unknown>(
@@ -177,6 +188,108 @@ export class ReolinkClient {
         throw error;
       }
       throw new Error(`Unexpected error: ${String(error)}`);
+    }
+  }
+
+  /**
+   * Internal method for binary API calls (e.g., Snap command)
+   * Returns raw ArrayBuffer instead of JSON
+   */
+  private async apiInternalBinary(
+    command: string,
+    params: Record<string, unknown> = {}
+  ): Promise<ArrayBuffer> {
+    // Build query string based on mode
+    let queryParams: string;
+    if (this.mode === "short") {
+      // Short connection mode: include user and password in query params
+      const user = encodeURIComponent(this.username);
+      const pass = encodeURIComponent(this.password);
+      queryParams = `cmd=${command}&user=${user}&password=${pass}`;
+    } else {
+      // Long connection mode: use token
+      queryParams = `cmd=${command}&token=${this.token}`;
+    }
+
+    // Add additional parameters
+    for (const key in params) {
+      queryParams += `&${key}=${encodeURIComponent(params[key] as string)}`;
+    }
+
+    const target = `${this.url}?${queryParams}`;
+
+    if (this.debug) {
+      console.error(">>> BINARY REQUEST >>>");
+      console.error(`TARGET: ${target}`);
+      console.error(`PARAMS: ${JSON.stringify(params)}`);
+    }
+
+    try {
+      const fetchOptions = createFetchOptions(this.insecure, this.fetchImpl, {
+        method: "GET",
+      });
+
+      const response = await this.fetchImpl(target, fetchOptions);
+
+      if (!response.ok) {
+        throw new ReolinkHttpError(
+          response.status,
+          response.status,
+          `HTTP error! status: ${response.status}`,
+          command
+        );
+      }
+
+      const arrayBuffer = await response.arrayBuffer();
+
+      if (this.debug) {
+        console.error("<<< BINARY RESPONSE <<<");
+        console.error(`Received ${arrayBuffer.byteLength} bytes`);
+      }
+
+      return arrayBuffer;
+    } catch (error) {
+      if (error instanceof ReolinkHttpError) {
+        throw error;
+      }
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error(`Unexpected error: ${String(error)}`);
+    }
+  }
+
+  /**
+   * Wrapper for binary API calls that handles token refresh on 401/invalid token errors
+   */
+  private async withTokenBinary(
+    command: string,
+    params: Record<string, unknown> = {},
+    retryCount = 0
+  ): Promise<ArrayBuffer> {
+    if (this.closed) {
+      throw new Error("Client is closed");
+    }
+
+    // In short mode, skip token management
+    if (this.mode === "short") {
+      return this.apiInternalBinary(command, params);
+    }
+
+    await this.ensureToken();
+
+    try {
+      return await this.apiInternalBinary(command, params);
+    } catch (error) {
+      // Check if it's a token-related error (401 or specific error codes)
+      if (error instanceof ReolinkHttpError && this.isTokenError(error) && retryCount === 0) {
+        if (this.debug) {
+          console.error("Token error detected in binary request, re-logging in and retrying...");
+        }
+        this.resetToken();
+        return this.withTokenBinary(command, params, retryCount + 1);
+      }
+      throw error;
     }
   }
 

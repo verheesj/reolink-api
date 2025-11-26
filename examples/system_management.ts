@@ -7,20 +7,16 @@
  * Run with: npx tsx examples/system_management.ts
  */
 
-import { ReolinkClient } from "../src/reolink.js";
 import "dotenv/config";
-import { 
-  getDevName, 
-  setDevName, 
-  getTime, 
-  setTime, 
-  getAutoMaint, 
-  setAutoMaint,
-  getHddInfo,
-  getUpgradeStatus,
+import {
   checkFirmware,
-  reboot
+  getAutoMaint,
+  getDevName,
+  getHddInfo,
+  getTime,
+  getUpgradeStatus
 } from "../src/endpoints/system.js";
+import { ReolinkClient } from "../src/reolink.js";
 
 async function main() {
   const host = process.env.REOLINK_NVR_HOST || "192.168.1.100";
@@ -44,7 +40,7 @@ async function main() {
     // Get name for channel 0 (default)
     const devNameInfo = await getDevName(client);
     console.log("Current Name (Channel 0):", devNameInfo.DevName.name);
-    
+
     // Uncomment to change device name:
     // await setDevName(client, "My Reolink Camera");
     // console.log("Device name updated!");
@@ -92,7 +88,7 @@ async function main() {
     try {
       await checkFirmware(client);
       console.log("Firmware check initiated.");
-      
+
       const upgradeStatus = await getUpgradeStatus(client);
       console.log("Upgrade Status:", upgradeStatus.UpgradeStatus);
     } catch (e) {

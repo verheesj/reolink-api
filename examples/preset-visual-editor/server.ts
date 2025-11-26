@@ -4,16 +4,16 @@
  * Run with: npx tsx examples/preset-visual-editor/server.ts
  */
 
-import { createServer, IncomingMessage, ServerResponse } from "node:http";
 import { createReadStream, existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { createServer, IncomingMessage, ServerResponse } from "node:http";
 import { dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
   PresetsModule,
-  type PresetZones,
   type GridArea,
+  type PresetZones,
 } from "../../src/presets.js";
 import { ReolinkClient } from "../../src/reolink.js";
 import { ReolinkHttpError } from "../../src/types.js";
@@ -34,7 +34,7 @@ class ZoneStore {
   private cache: PresetZonesRecord = {};
   private loaded = false;
 
-  constructor(private filePath: string) {}
+  constructor(private filePath: string) { }
 
   private async ensureLoaded(): Promise<void> {
     if (this.loaded) return;
@@ -173,9 +173,9 @@ async function main(): Promise<void> {
   const username = process.env.REOLINK_NVR_USER || "admin";
   const password = process.env.REOLINK_NVR_PASS || "password";
 
-  const client = new ReolinkClient({ 
-    host, 
-    username, 
+  const client = new ReolinkClient({
+    host,
+    username,
     password,
     debug: true, // Enable debug logging to see API requests/responses
   });
@@ -194,7 +194,7 @@ async function main(): Promise<void> {
 
     const requestUrl = new URL(req.url, `http://${req.headers.host}`);
     const pathname = requestUrl.pathname;
-    
+
     // Log all API requests for debugging
     if (pathname.startsWith("/api/")) {
       console.log(`[preset-editor] ${req.method} ${pathname}${requestUrl.search}`);

@@ -2,10 +2,10 @@
  * Unit tests for snapshot capture functionality
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
 import { promises as fs } from "fs";
-import { snapToBuffer, snapToFile } from "./snapshot.js";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ReolinkClient } from "./reolink.js";
+import { snapToBuffer, snapToFile } from "./snapshot.js";
 
 // Mock fs module
 vi.mock("fs", () => ({
@@ -16,7 +16,7 @@ vi.mock("fs", () => ({
 
 describe("snapshot", () => {
   let mockClient: ReolinkClient;
-  let mockFetch: ReturnType<typeof vi.fn>;
+  let mockApiBinary: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -28,27 +28,18 @@ describe("snapshot", () => {
       0x01, 0x00, 0x01, 0x00, 0x00, 0xff, 0xdb, 0x00, 0x43, 0x00, 0xff, 0xd9,
     ]);
 
-    // Mock fetch to return fake JPEG
-    // Need to create a new ArrayBuffer from the Buffer
+    // Convert Buffer to ArrayBuffer
     const arrayBuffer = fakeJpeg.buffer.slice(
       fakeJpeg.byteOffset,
       fakeJpeg.byteOffset + fakeJpeg.byteLength
     );
 
-    mockFetch = vi.fn().mockResolvedValue({
-      ok: true,
-      arrayBuffer: async () => arrayBuffer,
-    });
+    // Mock apiBinary to return fake JPEG as ArrayBuffer
+    mockApiBinary = vi.fn().mockResolvedValue(arrayBuffer);
 
     // Create mock client
     mockClient = {
-      getHost: vi.fn().mockReturnValue("192.168.0.79"),
-      getUsername: vi.fn().mockReturnValue("admin"),
-      getPassword: vi.fn().mockReturnValue("password"),
-      getMode: vi.fn().mockReturnValue("long"),
-      isInsecure: vi.fn().mockReturnValue(true),
-      getToken: vi.fn().mockReturnValue("test-token-123"),
-      getFetchImpl: vi.fn().mockReturnValue(mockFetch),
+      apiBinary: mockApiBinary,
     } as unknown as ReolinkClient;
   });
 
@@ -63,62 +54,46 @@ describe("snapshot", () => {
       expect(buffer[1]).toBe(0xd8);
     });
 
-    it("should use correct URL for long connection mode", async () => {
+    it("should call apiBinary with correct command and channel", async () => {
       await snapToBuffer(mockClient, 0);
 
-      expect(mockFetch).toHaveBeenCalledTimes(1);
-      const callUrl = mockFetch.mock.calls[0][0];
-      expect(callUrl).toContain("cmd=Snap");
-      expect(callUrl).toContain("channel=0");
-      expect(callUrl).toContain("token=test-token-123");
-      expect(callUrl).not.toContain("user=");
-      expect(callUrl).not.toContain("password=");
+      expect(mockApiBinary).toHaveBeenCalledTimes(1);
+      expect(mockApiBinary).toHaveBeenCalledWith("Snap", { channel: 0 });
     });
 
-    it("should use correct URL for short connection mode", async () => {
-      (mockClient.getMode as ReturnType<typeof vi.fn>).mockReturnValue("short");
-      (mockClient.getToken as ReturnType<typeof vi.fn>).mockReturnValue("null");
-
+    it("should use correct channel parameter", async () => {
       await snapToBuffer(mockClient, 1);
 
-      expect(mockFetch).toHaveBeenCalledTimes(1);
-      const callUrl = mockFetch.mock.calls[0][0];
-      expect(callUrl).toContain("cmd=Snap");
-      expect(callUrl).toContain("channel=1");
-      expect(callUrl).toContain("user=admin");
-      expect(callUrl).toContain("password=password");
-      expect(callUrl).not.toContain("token=");
+      expect(mockApiBinary).toHaveBeenCalledTimes(1);
+      expect(mockApiBinary).toHaveBeenCalledWith("Snap", { channel: 1 });
     });
 
     it("should default to channel 0 if not specified", async () => {
       await snapToBuffer(mockClient);
 
-      expect(mockFetch).toHaveBeenCalledTimes(1);
-      const callUrl = mockFetch.mock.calls[0][0];
-      expect(callUrl).toContain("channel=0");
+      expect(mockApiBinary).toHaveBeenCalledTimes(1);
+      expect(mockApiBinary).toHaveBeenCalledWith("Snap", { channel: 0 });
     });
 
     it("should throw error for invalid JPEG data", async () => {
-      // Mock fetch to return invalid data
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        arrayBuffer: async () => Buffer.from([0x00, 0x01, 0x02]).buffer,
-      });
+      // Mock apiBinary to return invalid data
+      const invalidData = Buffer.from([0x00, 0x01, 0x02]);
+      const invalidArrayBuffer = invalidData.buffer.slice(
+        invalidData.byteOffset,
+        invalidData.byteOffset + invalidData.byteLength
+      );
+      mockApiBinary.mockResolvedValueOnce(invalidArrayBuffer);
 
       await expect(snapToBuffer(mockClient, 0)).rejects.toThrow(
         "Invalid JPEG data"
       );
     });
 
-    it("should throw error on HTTP error", async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 404,
-        statusText: "Not Found",
-      });
+    it("should propagate errors from apiBinary", async () => {
+      mockApiBinary.mockRejectedValueOnce(new Error("Network error"));
 
       await expect(snapToBuffer(mockClient, 0)).rejects.toThrow(
-        "Failed to capture snapshot"
+        "Network error"
       );
     });
   });
@@ -148,20 +123,15 @@ describe("snapshot", () => {
 
       await snapToFile(mockClient, "/tmp/test.jpg");
 
-      expect(mockFetch).toHaveBeenCalledTimes(1);
-      const callUrl = mockFetch.mock.calls[0][0];
-      expect(callUrl).toContain("channel=0");
+      expect(mockApiBinary).toHaveBeenCalledTimes(1);
+      expect(mockApiBinary).toHaveBeenCalledWith("Snap", { channel: 0 });
     });
 
     it("should propagate errors from snapToBuffer", async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 500,
-        statusText: "Internal Server Error",
-      });
+      mockApiBinary.mockRejectedValueOnce(new Error("Connection failed"));
 
       await expect(snapToFile(mockClient, "/tmp/test.jpg", 0)).rejects.toThrow(
-        "Failed to capture snapshot"
+        "Connection failed"
       );
     });
   });
