@@ -5,8 +5,7 @@
  * of the bash script reolink.sh
  */
 
-import https from "https";
-import { fetch as undiciFetch, Agent as UndiciAgent } from "undici";
+import { fetch as undiciFetch } from "undici";
 import {
   ReolinkRequest,
   ReolinkResponse,
@@ -19,6 +18,7 @@ import {
   ReolinkEventEmitterOptions,
 } from "./events.js";
 import { ReolinkPlaybackController } from "./playback.js";
+import { createFetchOptions } from "./utils/https-agent.js";
 
 interface LoginParams {
   User: {
@@ -57,7 +57,6 @@ export class ReolinkClient {
   private tokenExpiryTime: number = 0; // Timestamp when token expires
   private url: string;
   private fetchImpl: (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
-  private useUndiciFetch: boolean;
   private closed: boolean = false;
   private eventEmitters: Set<ReolinkEventEmitter> = new Set();
 
@@ -73,10 +72,8 @@ export class ReolinkClient {
     // Otherwise use the provided fetch or default to global fetch
     if (options.fetch) {
       this.fetchImpl = options.fetch;
-      this.useUndiciFetch = false;
     } else {
       this.fetchImpl = (this.insecure ? undiciFetch : fetch) as typeof fetch;
-      this.useUndiciFetch = this.insecure;
     }
     this.url = `${this.plain ? 'http' : 'https'}://${this.host}/cgi-bin/api.cgi`;
   }
@@ -134,32 +131,13 @@ export class ReolinkClient {
     }
 
     try {
-      const fetchOptions: RequestInit = {
+      const fetchOptions = createFetchOptions(this.insecure, this.fetchImpl, {
         method,
         headers: {
           "Content-Type": "application/json",
         },
         ...(method === "POST" && { body: JSON.stringify([request]) }),
-      };
-
-      // Create an HTTPS agent that ignores certificate errors (equivalent to curl -k)
-      if (this.insecure) {
-        if (this.useUndiciFetch) {
-          // Use undici's dispatcher for undici fetch
-          const dispatcher = new UndiciAgent({
-            connect: {
-              rejectUnauthorized: false,
-            },
-          });
-          (fetchOptions as { dispatcher?: UndiciAgent }).dispatcher = dispatcher;
-        } else {
-          // Use Node.js https agent for other fetch implementations
-          const agent = new https.Agent({
-            rejectUnauthorized: false,
-          });
-          (fetchOptions as { agent?: https.Agent }).agent = agent;
-        }
-      }
+      });
 
       const response = await this.fetchImpl(target, fetchOptions);
 
@@ -228,31 +206,13 @@ export class ReolinkClient {
       console.error(JSON.stringify(request, null, 2));
     }
 
-    const fetchOptions: RequestInit = {
+    const fetchOptions = createFetchOptions(this.insecure, this.fetchImpl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify([request]),
-    };
-
-    if (this.insecure) {
-      if (this.fetchImpl === undiciFetch) {
-        // Use undici's dispatcher for undici fetch
-        const dispatcher = new UndiciAgent({
-          connect: {
-            rejectUnauthorized: false,
-          },
-        });
-        (fetchOptions as { dispatcher?: UndiciAgent }).dispatcher = dispatcher;
-      } else {
-        // Use Node.js https agent for other fetch implementations
-        const agent = new https.Agent({
-          rejectUnauthorized: false,
-        });
-        (fetchOptions as { agent?: https.Agent }).agent = agent;
-      }
-    }
+    });
 
     const response = await this.fetchImpl(target, fetchOptions);
 
@@ -299,6 +259,35 @@ export class ReolinkClient {
   }
 
   /**
+   * Check if an error is a token-related error that should trigger a retry.
+   * 
+   * Detection strategy (in order of reliability):
+   * 1. HTTP 401 status code - standard unauthorized
+   * 2. rspCode -1 - Reolink's common invalid token response code
+   * 3. String matching on error detail - fallback for device-specific messages
+   * 
+   * The string matching is intentionally broad to handle various error messages
+   * from different Reolink device firmware versions.
+   */
+  private isTokenError(error: ReolinkHttpError): boolean {
+    // Primary checks: specific error codes
+    if (error.code === 401 || error.rspCode === -1) {
+      return true;
+    }
+    // Secondary check: error message content (fallback for device-specific messages)
+    const detail = error.detail.toLowerCase();
+    return detail.includes("token") || detail.includes("session");
+  }
+
+  /**
+   * Reset token state to force re-login on next request
+   */
+  private resetToken(): void {
+    this.token = "null";
+    this.tokenExpiryTime = 0;
+  }
+
+  /**
    * Wrapper for API calls that handles token refresh on 401/invalid token errors
    */
   private async withToken<T>(
@@ -323,23 +312,12 @@ export class ReolinkClient {
       return await this.apiInternal<T>(command, params, action, method);
     } catch (error) {
       // Check if it's a token-related error (401 or specific error codes)
-      if (error instanceof ReolinkHttpError) {
-        const isTokenError =
-          error.code === 401 ||
-          error.rspCode === -1 || // Common invalid token code
-          error.detail.toLowerCase().includes("token") ||
-          error.detail.toLowerCase().includes("session");
-
-        if (isTokenError && retryCount === 0) {
-          if (this.debug) {
-            console.error("Token error detected, re-logging in and retrying...");
-          }
-          // Force token refresh
-          this.token = "null";
-          this.tokenExpiryTime = 0;
-          // Retry once after re-login
-          return this.withToken<T>(command, params, action, retryCount + 1, method);
+      if (error instanceof ReolinkHttpError && this.isTokenError(error) && retryCount === 0) {
+        if (this.debug) {
+          console.error("Token error detected, re-logging in and retrying...");
         }
+        this.resetToken();
+        return this.withToken<T>(command, params, action, retryCount + 1, method);
       }
       throw error;
     }
@@ -421,31 +399,13 @@ export class ReolinkClient {
       console.error(JSON.stringify(requests, null, 2));
     }
 
-    const fetchOptions: RequestInit = {
+    const fetchOptions = createFetchOptions(this.insecure, this.fetchImpl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify(requests),
-    };
-
-    if (this.insecure) {
-      if (this.fetchImpl === undiciFetch) {
-        // Use undici's dispatcher for undici fetch
-        const dispatcher = new UndiciAgent({
-          connect: {
-            rejectUnauthorized: false,
-          },
-        });
-        (fetchOptions as { dispatcher?: UndiciAgent }).dispatcher = dispatcher;
-      } else {
-        // Use Node.js https agent for other fetch implementations
-        const agent = new https.Agent({
-          rejectUnauthorized: false,
-        });
-        (fetchOptions as { agent?: https.Agent }).agent = agent;
-      }
-    }
+    });
 
     const response = await this.fetchImpl(target, fetchOptions);
 
@@ -491,23 +451,14 @@ export class ReolinkClient {
     try {
       return await this.apiInternalMany<T>(normalized);
     } catch (error) {
-      if (error instanceof ReolinkHttpError) {
-        const isTokenError =
-          error.code === 401 ||
-          error.rspCode === -1 ||
-          error.detail.toLowerCase().includes("token") ||
-          error.detail.toLowerCase().includes("session");
-
-        if (isTokenError && retryCount === 0) {
-          if (this.debug) {
-            console.error(
-              "Token error detected while processing batch, re-logging in and retrying..."
-            );
-          }
-          this.token = "null";
-          this.tokenExpiryTime = 0;
-          return this.withTokenMany<T>(normalized, retryCount + 1);
+      if (error instanceof ReolinkHttpError && this.isTokenError(error) && retryCount === 0) {
+        if (this.debug) {
+          console.error(
+            "Token error detected while processing batch, re-logging in and retrying..."
+          );
         }
+        this.resetToken();
+        return this.withTokenMany<T>(normalized, retryCount + 1);
       }
       throw error;
     }

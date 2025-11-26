@@ -2,10 +2,9 @@
  * Snapshot and thumbnail capture utilities
  */
 
-import https from "https";
 import { promises as fs } from "fs";
-import { Agent as UndiciAgent, fetch as undiciFetch } from "undici";
 import { ReolinkClient } from "./reolink.js";
+import { createFetchOptions } from "./utils/https-agent.js";
 
 export interface SnapshotOptions {
   channel?: number;
@@ -52,33 +51,9 @@ export async function snapToBuffer(
     console.error(`[reolink:snapshot] Fetching snapshot from: ${target}`);
   }
 
-  const fetchOptions: RequestInit = {
+  const fetchOptions = createFetchOptions(insecure, fetchImpl, {
     method: "GET",
-  };
-
-  // Create an HTTPS agent that ignores certificate errors
-  if (insecure) {
-    // Check if we're using undici fetch (which uses dispatcher instead of agent)
-    // Compare function references to detect undici fetch
-    const isUndiciFetch = fetchImpl === undiciFetch || 
-                         (fetchImpl.toString().includes('undici') && fetchImpl !== globalThis.fetch);
-    
-    if (isUndiciFetch) {
-      // Use undici's dispatcher for undici fetch
-      const dispatcher = new UndiciAgent({
-        connect: {
-          rejectUnauthorized: false,
-        },
-      });
-      (fetchOptions as { dispatcher?: UndiciAgent }).dispatcher = dispatcher;
-    } else {
-      // Use Node.js https agent for other fetch implementations
-      const agent = new https.Agent({
-        rejectUnauthorized: false,
-      });
-      (fetchOptions as { agent?: https.Agent }).agent = agent;
-    }
-  }
+  });
 
   const response = await fetchImpl(target, fetchOptions);
 

@@ -2,6 +2,8 @@
  * Streaming URL helpers for RTSP, RTMP, FLV, and playback
  */
 
+import { buildAuthParams } from "./utils/url-auth.js";
+
 /**
  * Options for generating RTSP streaming URLs
  * 
@@ -157,16 +159,13 @@ export function rtspUrl(options: RtspUrlOptions): string {
 export function rtmpUrl(options: RtmpUrlOptions): string {
   const { host, channel, streamType = "main" } = options;
   const streamTypeNum = streamType === "main" ? "0" : "1";
+  const authParams = buildAuthParams({
+    token: options.token,
+    user: options.user,
+    pass: options.pass,
+  });
 
-  if (options.token) {
-    // Long connection mode with token
-    return `rtmp://${host}:1935/bcs/channel${channel}_${streamTypeNum}.bcs?channel=${channel}&stream=${streamTypeNum}&user=${options.user || ""}&token=${options.token}`;
-  } else if (options.user && options.pass) {
-    // Short connection mode with user/pass
-    return `rtmp://${host}:1935/bcs/channel${channel}_${streamTypeNum}.bcs?channel=${channel}&stream=${streamTypeNum}&user=${options.user}&password=${options.pass}`;
-  } else {
-    throw new Error("RTMP URL requires either token or user/pass");
-  }
+  return `rtmp://${host}:1935/bcs/channel${channel}_${streamTypeNum}.bcs?channel=${channel}&stream=${streamTypeNum}&${authParams}`;
 }
 
 /**
@@ -206,16 +205,13 @@ export function rtmpUrl(options: RtmpUrlOptions): string {
 export function flvUrl(options: FlvUrlOptions): string {
   const { host, channel, streamType = "main" } = options;
   const streamTypeNum = streamType === "main" ? "0" : "1";
+  const authParams = buildAuthParams({
+    token: options.token,
+    user: options.user,
+    pass: options.pass,
+  });
 
-  if (options.token) {
-    // Long connection mode with token
-    return `http://${host}/flv?port=1935&app=bcs&stream=channel${channel}_${streamTypeNum}.bcs&channel=${channel}&stream=${streamTypeNum}&user=${options.user || ""}&token=${options.token}`;
-  } else if (options.user && options.pass) {
-    // Short connection mode with user/pass
-    return `http://${host}/flv?port=1935&app=bcs&stream=channel${channel}_${streamTypeNum}.bcs&channel=${channel}&stream=${streamTypeNum}&user=${options.user}&password=${options.pass}`;
-  } else {
-    throw new Error("FLV URL requires either token or user/pass");
-  }
+  return `http://${host}/flv?port=1935&app=bcs&stream=channel${channel}_${streamTypeNum}.bcs&channel=${channel}&stream=${streamTypeNum}&${authParams}`;
 }
 
 /**
@@ -259,12 +255,8 @@ export function nvrPlaybackFlvUrl(options: PlaybackFlvUrlOptions): string {
   // Convert ISO timestamp to Unix timestamp
   const startTime = Math.floor(new Date(start).getTime() / 1000);
 
-  if (token) {
-    return `http://${host}/flv?port=1935&app=bcs&stream=recordchannel${channel}_${streamTypeNum}.bcs&channel=${channel}&stream=${streamTypeNum}&starttime=${startTime}&user=${user || ""}&token=${token}`;
-  } else if (user && pass) {
-    return `http://${host}/flv?port=1935&app=bcs&stream=recordchannel${channel}_${streamTypeNum}.bcs&channel=${channel}&stream=${streamTypeNum}&starttime=${startTime}&user=${user}&password=${pass}`;
-  } else {
-    throw new Error("Playback FLV URL requires either token or user/pass");
-  }
+  const authParams = buildAuthParams({ token, user, pass });
+
+  return `http://${host}/flv?port=1935&app=bcs&stream=recordchannel${channel}_${streamTypeNum}.bcs&channel=${channel}&stream=${streamTypeNum}&starttime=${startTime}&${authParams}`;
 }
 
